@@ -1,0 +1,25 @@
+services:
+  airlink:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: airlink-hotspot
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+      - "3306:3306"
+    volumes:
+      - airlink_mysql:/var/lib/mysql
+      - airlink_hotspot:/opt/hotspot
+    environment:
+      - TZ=Asia/Bangkok
+      - MYSQL_PASSWORD_DEFAULT=123456789000
+
+volumes:
+  airlink_mysql:
+    name: airlink_mysql_data
+  airlink_hotspot:
+    name: airlink_hotspot_data

@@ -1,0 +1,9 @@
+.git
+.gitignore
+.agents
+.gemini
+*.tgz
+*.tar.gz
+*.log
+scratch/
+DOCKER_GUIDE.md

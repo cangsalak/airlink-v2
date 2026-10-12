@@ -1,0 +1,366 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { 
+  Plus, 
+  Trash2, 
+  Search, 
+  Printer, 
+  RefreshCw, 
+  X,
+  Ticket
+} from 'lucide-react';
+import { fetchApi } from '@/lib/api';
+
+export default function VouchersPage() {
+  const [vouchers, setVouchers] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [pagination, setPagination] = useState<any>({ total: 0, page: 1, limit: 20, totalPages: 1 });
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+
+  // Form states for batch generation
+  const [genProfileId, setGenProfileId] = useState('');
+  const [genCount, setGenCount] = useState('10');
+  const [genPrefix, setGenPrefix] = useState('');
+  const [genCodeLength, setGenCodeLength] = useState('6');
+  const [genSameUserPass, setGenSameUserPass] = useState(true);
+  const [generating, setGenerating] = useState(false);
+
+  const loadData = async (page = 1) => {
+    try {
+      setLoading(true);
+      const queryParams = new URLSearchParams({
+        page: String(page),
+        limit: '20',
+        ...(search && { search }),
+        ...(statusFilter && { status: statusFilter }),
+      });
+      const res = await fetchApi(`/vouchers?${queryParams.toString()}`);
+      setVouchers(res.data || []);
+      setPagination(res.pagination || {});
+    } catch (err) {
+      console.error('Failed to load vouchers:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadProfiles = async () => {
+    try {
+      const data = await fetchApi('/profiles');
+      setProfiles(data || []);
+      if (data?.length > 0 && !genProfileId) {
+        setGenProfileId(String(data[0].id));
+      }
+    } catch (err) {
+      console.error('Failed to load profiles:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadData(1);
+    loadProfiles();
+  }, [statusFilter]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    loadData(1);
+  };
+
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setGenerating(true);
+      await fetchApi('/vouchers/generate', {
+        method: 'POST',
+        body: JSON.stringify({
+          profileId: genProfileId,
+          count: genCount,
+          prefix: genPrefix,
+          codeLength: genCodeLength,
+          sameUserPass: genSameUserPass,
+        }),
+      });
+      setShowGenerateModal(false);
+      loadData(1);
+    } catch (err: any) {
+      alert(`สร้างคูปองไม่สำเร็จ: ${err.message}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('ยืนยันลบคูปองนี้? ข้อมูลใน FreeRADIUS จะถูกลบออกด้วย')) return;
+    try {
+      await fetchApi(`/vouchers/${id}`, { method: 'DELETE' });
+      loadData(pagination.page);
+    } catch (err: any) {
+      alert(`ลบคูปองไม่สำเร็จ: ${err.message}`);
+    }
+  };
+
+  return (
+    <div className="p-8 space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">จัดการคูปอง (Vouchers)</h1>
+          <p className="text-sm text-slate-400">สร้างบัตรอินเทอร์เน็ต ซิงค์ข้อมูลกับ FreeRADIUS และ Mikrotik อัตโนมัติ</p>
+        </div>
+        <div className="flex items-center space-x-3">
+          <Link
+            href="/vouchers/print"
+            className="flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium transition"
+          >
+            <Printer className="w-4 h-4" />
+            <span>พิมพ์บัตรคูปอง</span>
+          </Link>
+          <button
+            onClick={() => setShowGenerateModal(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-sky-600/20"
+          >
+            <Plus className="w-4 h-4" />
+            <span>สร้างคูปองชุดใหม่</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2 w-full sm:w-80">
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="ค้นหารหัสคูปอง..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:border-sky-500"
+            />
+          </div>
+          <button type="submit" className="px-3 py-2 bg-slate-800 text-slate-300 rounded-lg text-sm hover:bg-slate-700">
+            ค้นหา
+          </button>
+        </form>
+
+        <div className="flex items-center space-x-3 w-full sm:w-auto">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-sky-500"
+          >
+            <option value="">ทุกสถานะ (All Status)</option>
+            <option value="unused">ยังไม่ใช้ (Unused)</option>
+            <option value="active">กำลังใช้งาน (Active)</option>
+            <option value="expired">หมดอายุ (Expired)</option>
+          </select>
+          <button
+            onClick={() => loadData(pagination.page)}
+            disabled={loading}
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Vouchers Table */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-300">
+            <thead className="bg-slate-800/60 text-slate-400 text-xs uppercase">
+              <tr>
+                <th className="px-5 py-3.5">รหัส (Username)</th>
+                <th className="px-5 py-3.5">รหัสผ่าน</th>
+                <th className="px-5 py-3.5">แพ็กเกจ (Profile)</th>
+                <th className="px-5 py-3.5">ความเร็ว (Speed)</th>
+                <th className="px-5 py-3.5">ราคา</th>
+                <th className="px-5 py-3.5">สถานะ</th>
+                <th className="px-5 py-3.5 text-right">การจัดการ</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {vouchers.length ? (
+                vouchers.map((v) => (
+                  <tr key={v.id} className="hover:bg-slate-800/30 transition">
+                    <td className="px-5 py-3 font-mono font-medium text-white">{v.code}</td>
+                    <td className="px-5 py-3 font-mono text-slate-400">{v.password}</td>
+                    <td className="px-5 py-3">{v.profile_name}</td>
+                    <td className="px-5 py-3 text-slate-400">
+                      {v.bw_download}M / {v.bw_upload}M
+                    </td>
+                    <td className="px-5 py-3 font-medium">฿{Number(v.price).toFixed(2)}</td>
+                    <td className="px-5 py-3">
+                      <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${
+                        v.status === 'unused' ? 'bg-amber-500/10 text-amber-400' :
+                        v.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' :
+                        'bg-slate-700 text-slate-300'
+                      }`}>
+                        {v.status}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <button
+                        onClick={() => handleDelete(v.id)}
+                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                        title="ลบคูปอง"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="px-5 py-10 text-center text-slate-500">
+                    {loading ? 'กำลังโหลดข้อมูล...' : 'ไม่พบคูปองตามเงื่อนไขที่ค้นหา'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {pagination.totalPages > 1 && (
+          <div className="p-4 border-t border-slate-800 flex items-center justify-between text-sm text-slate-400">
+            <div>
+              ทั้งหมด {pagination.total} รายการ (หน้า {pagination.page} / {pagination.totalPages})
+            </div>
+            <div className="flex space-x-2">
+              <button
+                disabled={pagination.page <= 1}
+                onClick={() => loadData(pagination.page - 1)}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded"
+              >
+                ก่อนหน้า
+              </button>
+              <button
+                disabled={pagination.page >= pagination.totalPages}
+                onClick={() => loadData(pagination.page + 1)}
+                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded"
+              >
+                ถัดไป
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Batch Generate Modal */}
+      {showGenerateModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative">
+            <button
+              onClick={() => setShowGenerateModal(false)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="p-2.5 bg-sky-500/20 text-sky-400 rounded-xl">
+                <Ticket className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">สร้างบัตรคูปองเป็นชุด</h3>
+                <p className="text-xs text-slate-400">สุ่มรหัสและบันทึกลงฐานข้อมูล FreeRADIUS อัตโนมัติ</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleGenerate} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">เลือกแพ็กเกจ (Profile)</label>
+                <select
+                  value={genProfileId}
+                  onChange={(e) => setGenProfileId(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg p-2.5 focus:outline-none focus:border-sky-500"
+                  required
+                >
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} - ฿{Number(p.price).toFixed(2)} ({p.bw_download}M/{p.bw_upload}M)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">จำนวนที่ต้องการสร้าง</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={genCount}
+                    onChange={(e) => setGenCount(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg p-2.5 focus:outline-none focus:border-sky-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">ความยาวรหัส (หลัก)</label>
+                  <input
+                    type="number"
+                    min="4"
+                    max="10"
+                    value={genCodeLength}
+                    onChange={(e) => setGenCodeLength(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg p-2.5 focus:outline-none focus:border-sky-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">คำนำหน้า (Prefix - ไม่บังคับ)</label>
+                <input
+                  type="text"
+                  placeholder="เช่น WIFI- หรือ AIR-"
+                  value={genPrefix}
+                  onChange={(e) => setGenPrefix(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg p-2.5 focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="sameUserPass"
+                  checked={genSameUserPass}
+                  onChange={(e) => setGenSameUserPass(e.target.checked)}
+                  className="w-4 h-4 rounded text-sky-600 bg-slate-800 border-slate-700"
+                />
+                <label htmlFor="sameUserPass" className="text-xs text-slate-300">
+                  ใช้รหัสผ่านเดียวกับ Username (สะดวกสำหรับ Hotspot ช่องกรอกเดียว)
+                </label>
+              </div>
+
+              <div className="pt-4 flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowGenerateModal(false)}
+                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg text-sm hover:bg-slate-700"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={generating}
+                  className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-sm font-medium transition disabled:opacity-50"
+                >
+                  {generating ? 'กำลังสร้าง...' : 'สร้างคูปอง'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
