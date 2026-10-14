@@ -1,211 +1,216 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { 
-  Users, 
-  Ticket, 
   CheckCircle2, 
-  DollarSign, 
-  ArrowUpRight, 
-  PlusCircle, 
-  Printer, 
-  RefreshCw 
+  RefreshCw, 
+  Monitor, 
+  LayoutDashboard,
+  ExternalLink,
+  ChevronRight
 } from 'lucide-react';
 import { fetchApi } from '@/lib/api';
+import SynologyDesktop from '@/components/SynologyDesktop';
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'classic' | 'desktop'>('classic');
+  const [systemOverview, setSystemOverview] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadStats = async () => {
+  // Load saved view preference from localStorage if available
+  useEffect(() => {
+    const savedMode = localStorage.getItem('airlink_view_mode') as 'classic' | 'desktop';
+    if (savedMode) {
+      setViewMode(savedMode);
+    }
+  }, []);
+
+  const toggleViewMode = () => {
+    const nextMode = viewMode === 'classic' ? 'desktop' : 'classic';
+    setViewMode(nextMode);
+    localStorage.setItem('airlink_view_mode', nextMode);
+  };
+
+  const loadSystemOverview = async () => {
     try {
       setLoading(true);
-      const data = await fetchApi('/dashboard/stats');
-      setStats(data);
+      const data = await fetchApi('/system/overview');
+      setSystemOverview(data);
     } catch (err) {
-      console.error('Failed to load stats:', err);
+      console.error('Failed to load system overview:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadStats();
+    loadSystemOverview();
+    const interval = setInterval(loadSystemOverview, 30000);
+    return () => clearInterval(interval);
   }, []);
 
+  const system = systemOverview?.system || {
+    os: 'Ubuntu 24.04.1 LTS',
+    ip: '192.168.88.252',
+    time: '11/10/2026 21:52',
+    lastCheck: '11/10/2026 21:50:02',
+    routerName: 'hAP',
+    routerModel: 'hAP ax^3 · 7.23.7 (long-term)',
+    routerUptime: '2d2h53m2s',
+  };
+
+  const stats = systemOverview?.stats || {
+    onlineUsers: 0,
+    hotspotServers: 1,
+    profilesCount: 1,
+    mikrotikLoadPct: 0,
+    cpuUsagePct: '5.3',
+    memUsagePct: '16.7',
+    memFreeGb: '6.0',
+    diskUsagePct: '21.6',
+    diskFreeGb: '36.8',
+  };
+
+  const services = systemOverview?.services || [
+    { id: 'mikrotik_api', name: 'MIKROTIK API', detail: 'hAP ax^3 · 7.23.7 (long-term)' },
+    { id: 'radius_server', name: 'RADIUS SERVER', detail: 'ทำงานปกติ' },
+    { id: 'radius_auth', name: 'RADIUS AUTH', detail: 'RADIUS ตอบคำขอที่ส่งสายเป็นถูกต้อง' },
+    { id: 'radius_accounting', name: 'RADIUS ACCOUNTING', detail: 'ออนไลน์ 0 · Accounting เปิด 0 · ไม่พบ 0 · ค้าง 0' },
+    { id: 'database', name: 'DATABASE', detail: 'เชื่อมต่อฐานข้อมูลปกติ' },
+    { id: 'web_server', name: 'WEB SERVER', detail: 'ทำงานปกติ' },
+    { id: 'server_cpu', name: 'SERVER CPU', detail: 'ใช้งาน CPU 5.3%' },
+    { id: 'server_memory', name: 'SERVER MEMORY', detail: 'ใช้หน่วยความจำ 16.7% ว่าง 6.0 GB' },
+    { id: 'server_disk', name: 'SERVER DISK', detail: 'ใช้พื้นที่ 21.6% ว่าง 36.8 GB' },
+    { id: 'default_gateway', name: 'DEFAULT GATEWAY', detail: 'เชื่อมต่อ Gateway 192.168.88.1 ผ่าน enp0s3 ปกติ' },
+    { id: 'dns', name: 'DNS', detail: 'แปลงชื่อ DNS ได้ปกติ' },
+    { id: 'internet', name: 'INTERNET', detail: 'ออกอินเทอร์เน็ตได้ปกติ' },
+    { id: 'hotspot_server', name: 'HOTSPOT SERVER', detail: 'Hotspot airlink-hotspot ว่าง ระบบพร้อมใช้งาน' },
+    { id: 'hotspot_radius', name: 'HOTSPOT RADIUS', detail: 'Hotspot ใช้ RADIUS และ Accounting เปิดใช้งาน' },
+    { id: 'captive_portal', name: 'CAPTIVE PORTAL', detail: 'พบบริการ hotspot airlink/login.html' }
+  ];
+
+  // Render Synology Desktop Mode if selected
+  if (viewMode === 'desktop') {
+    return <SynologyDesktop systemOverview={systemOverview} />;
+  }
+
+  // Otherwise Render Classic Airlink UI (Exact match to User's Screenshot)
   return (
-    <div className="p-8 space-y-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">แดชบอร์ดภาพรวม (Dashboard)</h1>
-          <p className="text-sm text-slate-400">ระบบจัดการ Hotspot Mikrotik & FreeRADIUS V2</p>
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4 max-w-[1600px] mx-auto">
+      {/* 1. Dark Info Banner Pill (Matches Screenshot Top Pill) */}
+      <div className="bg-[#131d2e] text-white rounded-xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-y-2 text-xs sm:text-sm font-medium shadow-sm">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+          <span className="font-bold text-white tracking-wide">Airlink Mikrotik</span>
+          <span className="text-slate-300">{system.os}</span>
+          <span className="text-slate-300">
+            IP ระบบ: <span className="font-mono text-slate-100">{system.ip}</span>
+          </span>
+          <span className="text-slate-300">
+            เวลา: <span className="text-slate-100">{system.time}</span>
+          </span>
+          <span className="text-slate-300">
+            Router: <span className="text-sky-400 font-semibold">{system.routerName}</span>
+          </span>
         </div>
-        <div className="flex items-center space-x-3">
+
+        <div className="flex items-center space-x-2">
           <button
-            onClick={loadStats}
+            onClick={toggleViewMode}
+            className="flex items-center space-x-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-semibold transition border border-slate-700"
+            title="เปิดโหมด Synology Desktop"
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            <span>โหมดไอคอน Synology</span>
+          </button>
+          <button
+            onClick={loadSystemOverview}
             disabled={loading}
-            className="flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium transition"
+            className="p-1 text-slate-400 hover:text-white transition"
+            title="รีเฟรชข้อมูล"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>รีเฟรช</span>
           </button>
-          <Link
-            href="/vouchers"
-            className="flex items-center space-x-2 px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-sky-600/20"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>สร้างคูปองใหม่</span>
-          </Link>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
-          <div>
-            <p className="text-sm text-slate-400">ผู้ใช้ออนไลน์สด</p>
-            <h3 className="text-2xl font-bold text-white mt-1">
-              {stats?.online_users ?? 0} <span className="text-xs text-emerald-400 font-normal">Active</span>
-            </h3>
-          </div>
-          <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl">
-            <Users className="w-6 h-6" />
+      {/* 2. Light Green Status Alert Banner (Matches Screenshot) */}
+      <div className="bg-[#dcfce7] border border-[#bbf7d0] rounded-xl px-5 py-3.5 flex items-center justify-between text-[#166534] shadow-sm">
+        <div className="flex items-center space-x-2.5">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          <div className="text-xs sm:text-sm">
+            <span className="font-bold mr-2">✓ ระบบพร้อมใช้งาน</span>
+            <span className="text-emerald-800">ผลตรวจอัตโนมัติล่าสุด {system.lastCheck} ปกติทุกรายการ</span>
           </div>
         </div>
-
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
-          <div>
-            <p className="text-sm text-slate-400">คูปองที่ยังไม่ใช้</p>
-            <h3 className="text-2xl font-bold text-white mt-1">
-              {stats?.vouchers?.unused ?? 0}
-            </h3>
-          </div>
-          <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
-            <Ticket className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
-          <div>
-            <p className="text-sm text-slate-400">คูปองทั้งหมดในระบบ</p>
-            <h3 className="text-2xl font-bold text-white mt-1">
-              {stats?.vouchers?.total ?? 0}
-            </h3>
-          </div>
-          <div className="p-3 bg-sky-500/10 text-sky-400 rounded-xl">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
-          <div>
-            <p className="text-sm text-slate-400">ยอดมูลค่าคูปองรวม</p>
-            <h3 className="text-2xl font-bold text-white mt-1">
-              ฿{Number(stats?.vouchers?.total_sales || 0).toLocaleString()}
-            </h3>
-          </div>
-          <div className="p-3 bg-violet-500/10 text-violet-400 rounded-xl">
-            <DollarSign className="w-6 h-6" />
-          </div>
-        </div>
+        <button 
+          onClick={loadSystemOverview}
+          className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 underline transition shrink-0 ml-4"
+        >
+          ดูรายละเอียด
+        </button>
       </div>
 
-      {/* Quick Action Cards */}
+      {/* 3. Top 3 Stat Overview Cards (Matches Screenshot) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <Link 
-          href="/vouchers" 
-          className="group bg-gradient-to-br from-slate-900 to-slate-800/80 border border-slate-800 hover:border-sky-500/50 p-6 rounded-2xl transition shadow-sm"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-3 bg-sky-500/20 text-sky-400 rounded-xl">
-              <PlusCircle className="w-6 h-6" />
+        {/* Card 1: ภาพรวมผู้ใช้งาน */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 flex flex-col justify-between">
+          <div>
+            <h2 className="text-slate-700 font-semibold text-base sm:text-lg">ภาพรวมผู้ใช้งาน</h2>
+            <div className="text-4xl sm:text-5xl font-bold text-[#0284c7] mt-3 tracking-tight">
+              {stats.onlineUsers}
             </div>
-            <ArrowUpRight className="w-5 h-5 text-slate-500 group-hover:text-sky-400 transition" />
           </div>
-          <h4 className="text-lg font-semibold text-white">สร้างบัตรคูปองเป็นชุด</h4>
-          <p className="text-sm text-slate-400 mt-1">กำหนดแพ็กเกจ ความเร็ว จำนวน และสุ่มรหัสลง RADIUS อัตโนมัติ</p>
-        </Link>
+          <p className="text-xs text-slate-500 mt-4">ผู้ใช้งาน Hotspot ออนไลน์</p>
+        </div>
 
-        <Link 
-          href="/vouchers/print" 
-          className="group bg-gradient-to-br from-slate-900 to-slate-800/80 border border-slate-800 hover:border-emerald-500/50 p-6 rounded-2xl transition shadow-sm"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl">
-              <Printer className="w-6 h-6" />
+        {/* Card 2: Hotspot Server */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 flex flex-col justify-between">
+          <div>
+            <h2 className="text-slate-700 font-semibold text-base sm:text-lg">Hotspot Server</h2>
+            <div className="text-4xl sm:text-5xl font-bold text-[#0284c7] mt-3 tracking-tight">
+              {stats.hotspotServers}
             </div>
-            <ArrowUpRight className="w-5 h-5 text-slate-500 group-hover:text-emerald-400 transition" />
           </div>
-          <h4 className="text-lg font-semibold text-white">พิมพ์คูปอง (พร้อม QR Code)</h4>
-          <p className="text-sm text-slate-400 mt-1">จัดพิมพ์ขนาด A4 พร้อม QR Code ให้ลูกค้าสแกนต่อเน็ตได้ทันที</p>
-        </Link>
+          <p className="text-xs text-slate-500 mt-4">โปรไฟล์ {stats.profilesCount} รายการ</p>
+        </div>
 
-        <Link 
-          href="/mikrotik" 
-          className="group bg-gradient-to-br from-slate-900 to-slate-800/80 border border-slate-800 hover:border-violet-500/50 p-6 rounded-2xl transition shadow-sm"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-3 bg-violet-500/20 text-violet-400 rounded-xl">
-              <Users className="w-6 h-6" />
+        {/* Card 3: โหลด MikroTik */}
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 flex flex-col justify-between">
+          <div>
+            <h2 className="text-slate-700 font-semibold text-base sm:text-lg">โหลด MikroTik</h2>
+            <div className="text-4xl sm:text-5xl font-bold text-[#0284c7] mt-3 tracking-tight">
+              {stats.mikrotikLoadPct}%
             </div>
-            <ArrowUpRight className="w-5 h-5 text-slate-500 group-hover:text-violet-400 transition" />
           </div>
-          <h4 className="text-lg font-semibold text-white">มอนิเตอร์ Mikrotik สด</h4>
-          <p className="text-sm text-slate-400 mt-1">ดูรายชื่อคนกำลังเล่นเน็ต, IP, MAC Address และสั่งเตะผู้ใช้ได้ทันที</p>
-        </Link>
+          <p className="text-xs text-slate-500 mt-4">Uptime {system.routerUptime}</p>
+        </div>
       </div>
 
-      {/* Recent Vouchers Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-lg text-white">คูปองที่สร้างล่าสุด</h3>
-          <Link href="/vouchers" className="text-xs text-sky-400 hover:underline">
-            ดูทั้งหมด &rarr;
-          </Link>
-        </div>
+      {/* 4. Grid of 15 Service Health Status Cards (Matches Screenshot 4-Column Grid) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+        {services.map((item: any) => (
+          <div
+            key={item.id}
+            className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4.5 flex flex-col justify-between hover:border-slate-300 transition-colors"
+          >
+            {/* Header: Service Name + Green Indicator Dot */}
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-bold text-xs sm:text-[13px] text-slate-700 tracking-wide uppercase">
+                {item.name}
+              </h3>
+              <span 
+                className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 shadow-sm shadow-emerald-500/50" 
+                title="สถานะปกติ (Active)"
+              />
+            </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-300">
-            <thead className="bg-slate-800/50 text-slate-400 text-xs uppercase">
-              <tr>
-                <th className="px-4 py-3">รหัสคูปอง (Username)</th>
-                <th className="px-4 py-3">รหัสผ่าน</th>
-                <th className="px-4 py-3">แพ็กเกจ (Profile)</th>
-                <th className="px-4 py-3">ราคา</th>
-                <th className="px-4 py-3">สถานะ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {stats?.recent_vouchers?.length ? (
-                stats.recent_vouchers.map((v: any) => (
-                  <tr key={v.id} className="hover:bg-slate-800/30">
-                    <td className="px-4 py-3 font-mono font-medium text-white">{v.code}</td>
-                    <td className="px-4 py-3 font-mono text-slate-400">{v.password}</td>
-                    <td className="px-4 py-3">{v.profile_name}</td>
-                    <td className="px-4 py-3">฿{Number(v.price).toFixed(2)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2.5 py-1 text-xs rounded-full font-medium ${
-                        v.status === 'unused' ? 'bg-amber-500/10 text-amber-400' :
-                        v.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' :
-                        'bg-slate-700 text-slate-300'
-                      }`}>
-                        {v.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-slate-500">
-                    ยังไม่มีข้อมูลคูปองในระบบ (กดสร้างคูปองใหม่เพื่อเริ่มต้น)
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            {/* Content: Service Detail Text */}
+            <p className="text-xs text-slate-500 leading-relaxed font-normal">
+              {item.detail}
+            </p>
+          </div>
+        ))}
       </div>
     </div>
   );

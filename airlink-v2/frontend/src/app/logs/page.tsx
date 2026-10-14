@@ -27,26 +27,26 @@ export default function LogsPage() {
   }, []);
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">ประวัติการใช้งาน (RADIUS Accounting Logs)</h1>
-          <p className="text-sm text-slate-400">บันทึกประวัติการล็อกอิน เวลา และปริมาณการใช้งานเน็ตตาม พ.ร.บ. คอมพิวเตอร์ จากตาราง radacct</p>
+          <h1 className="text-xl font-bold text-slate-800">ประวัติการใช้งาน (RADIUS Accounting Logs)</h1>
+          <p className="text-xs text-slate-500">บันทึกประวัติการล็อกอิน เวลา และปริมาณการใช้งานเน็ตตาม พ.ร.บ. คอมพิวเตอร์ จากตาราง radacct</p>
         </div>
         <button
           onClick={() => loadLogs(pagination.page)}
           disabled={loading}
-          className="flex items-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-medium transition self-start"
+          className="flex items-center space-x-1.5 px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition shadow-sm self-start"
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>รีเฟรชประวัติ</span>
         </button>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+      <div className="bg-white border border-slate-200/90 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-300">
-            <thead className="bg-slate-800/60 text-slate-400 text-xs uppercase">
+          <table className="w-full text-left text-xs text-slate-700">
+            <thead className="bg-slate-50 text-slate-600 text-[11px] font-bold uppercase border-b border-slate-100">
               <tr>
                 <th className="px-5 py-3.5">ผู้ใช้ (Username)</th>
                 <th className="px-5 py-3.5">IP Address</th>
@@ -57,25 +57,27 @@ export default function LogsPage() {
                 <th className="px-5 py-3.5">ดาวน์โหลด / อัปโหลด</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-slate-100">
               {logs.length > 0 ? (
                 logs.map((l) => (
-                  <tr key={l.radacctid} className="hover:bg-slate-800/30 transition">
-                    <td className="px-5 py-3 font-mono font-medium text-white">{l.username}</td>
-                    <td className="px-5 py-3 font-mono text-slate-300">{l.framedipaddress || '-'}</td>
-                    <td className="px-5 py-3 font-mono text-slate-400">{l.callingstationid || '-'}</td>
-                    <td className="px-5 py-3 text-xs text-slate-400">
+                  <tr key={l.radacctid} className="hover:bg-slate-50/70 transition">
+                    <td className="px-5 py-3 font-mono font-bold text-slate-900">{l.username}</td>
+                    <td className="px-5 py-3 font-mono text-slate-700">{l.framedipaddress || '-'}</td>
+                    <td className="px-5 py-3 font-mono text-slate-500">{l.callingstationid || '-'}</td>
+                    <td className="px-5 py-3 text-xs text-slate-500">
                       {l.acctstarttime ? new Date(l.acctstarttime).toLocaleString('th-TH') : '-'}
                     </td>
-                    <td className="px-5 py-3 text-xs text-slate-400">
+                    <td className="px-5 py-3 text-xs text-slate-500">
                       {l.acctstoptime ? new Date(l.acctstoptime).toLocaleString('th-TH') : (
-                        <span className="text-emerald-400 font-medium">กำลังออนไลน์</span>
+                        <span className="text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full text-[10px]">
+                          กำลังออนไลน์
+                        </span>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-slate-400">
+                    <td className="px-5 py-3 text-slate-500">
                       {l.acctsessiontime ? `${Math.round(l.acctsessiontime / 60)} นาที` : '-'}
                     </td>
-                    <td className="px-5 py-3 text-slate-400">
+                    <td className="px-5 py-3 text-slate-500">
                       {l.acctoutputoctets ? `${(Number(l.acctoutputoctets) / 1024 / 1024).toFixed(1)}MB` : '0MB'} / {' '}
                       {l.acctinputoctets ? `${(Number(l.acctinputoctets) / 1024 / 1024).toFixed(1)}MB` : '0MB'}
                     </td>
@@ -83,7 +85,7 @@ export default function LogsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-slate-500">
+                  <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
                     {loading ? 'กำลังโหลดประวัติ...' : 'ยังไม่มีประวัติการเชื่อมต่อในระบบ'}
                   </td>
                 </tr>
@@ -93,7 +95,7 @@ export default function LogsPage() {
         </div>
 
         {pagination.totalPages > 1 && (
-          <div className="p-4 border-t border-slate-800 flex items-center justify-between text-sm text-slate-400">
+          <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
             <div>
               ทั้งหมด {pagination.total} รายการ (หน้า {pagination.page} / {pagination.totalPages})
             </div>
@@ -101,14 +103,14 @@ export default function LogsPage() {
               <button
                 disabled={pagination.page <= 1}
                 onClick={() => loadLogs(pagination.page - 1)}
-                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded"
+                className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-50 rounded-lg"
               >
                 ก่อนหน้า
               </button>
               <button
                 disabled={pagination.page >= pagination.totalPages}
                 onClick={() => loadLogs(pagination.page + 1)}
-                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded"
+                className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-50 rounded-lg"
               >
                 ถัดไป
               </button>
