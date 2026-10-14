@@ -152,11 +152,21 @@ SQL_CONF="/etc/freeradius/3.0/mods-available/sql"
 if [ -f "$SQL_CONF" ]; then
     sed -i 's/driver = "rlm_sql_null"/driver = "rlm_sql_${dialect}"/' "$SQL_CONF"
     sed -i 's/dialect = "sqlite"/dialect = "mysql"/' "$SQL_CONF"
+    sed -i "s/^#[[:blank:]]*server = .*/\tserver = \"${DB_HOST}\"/" "$SQL_CONF"
+    sed -i "s/^#[[:blank:]]*port = .*/\tport = ${DB_PORT}/" "$SQL_CONF"
+    sed -i "s/^#[[:blank:]]*login = .*/\tlogin = \"${DB_USER}\"/" "$SQL_CONF"
+    sed -i "s/^#[[:blank:]]*password = .*/\tpassword = \"${DB_PASSWORD}\"/" "$SQL_CONF"
     sed -i "s/server = \".*\"/server = \"${DB_HOST}\"/" "$SQL_CONF"
     sed -i "s/port = [0-9]*/port = ${DB_PORT}/" "$SQL_CONF"
     sed -i "s/login = \".*\"/login = \"${DB_USER}\"/" "$SQL_CONF"
     sed -i "s/password = \".*\"/password = \"${DB_PASSWORD}\"/" "$SQL_CONF"
     sed -i "s/radius_db = \".*\"/radius_db = \"${DB_NAME}\"/" "$SQL_CONF"
+    sed -i '/ca_file = /s/^/#/' "$SQL_CONF"
+    sed -i '/ca_path = /s/^/#/' "$SQL_CONF"
+    sed -i '/certificate_file = /s/^/#/' "$SQL_CONF"
+    sed -i '/private_key_file = /s/^/#/' "$SQL_CONF"
+    sed -i '/cipher = /s/^/#/' "$SQL_CONF"
+    sed -i '/tls_required = /s/^/#/' "$SQL_CONF"
 fi
 
 # Enable SQL Modules symlinks
@@ -165,9 +175,9 @@ ln -sf /etc/freeradius/3.0/mods-available/sqlcounter /etc/freeradius/3.0/mods-en
 
 # Enable SQL in default site
 DEFAULT_SITE="/etc/freeradius/3.0/sites-available/default"
-if [ -f "$DEFAULT_SITE" ]; then
     sed -i '/-sql/s/^-sql/sql/' "$DEFAULT_SITE"
-    sed -i '/#\tsql/s/#\tsql/\tsql/' "$DEFAULT_SITE"
+    sed -i '/#\tsql$/s/#\tsql/\tsql/' "$DEFAULT_SITE"
+    sed -i '/sqlippool/s/^\([[:blank:]]*\)sqlippool/\1#sqlippool/' "$DEFAULT_SITE"
 fi
 
 # Configure Clients (Accept Mikrotik with RADIUS_SECRET)
