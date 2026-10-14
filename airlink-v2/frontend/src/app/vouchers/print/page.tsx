@@ -8,22 +8,48 @@ import { fetchApi } from '@/lib/api';
 
 export default function VoucherPrintPage() {
   const [vouchers, setVouchers] = useState<any[]>([]);
+  const [batches, setBatches] = useState<any[]>([]);
+  const [selectedBatch, setSelectedBatch] = useState<string>('');
   const [qrCodes, setQrCodes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [marking, setMarking] = useState(false);
   const [ssid, setSsid] = useState('@Free-WiFi-Airlink');
   const [hotspotUrl, setHotspotUrl] = useState('http://hotspot.local/login');
 
-  const loadUnprintedVouchers = async () => {
+  const loadSettingsAndBatches = async () => {
+    try {
+      const [batchList, routers, settings] = await Promise.all([
+        fetchApi('/vouchers/batches').catch(() => []),
+        fetchApi('/routers').catch(() => []),
+        fetchApi('/settings').catch(() => ({})),
+      ]);
+      setBatches(batchList || []);
+      if (routers && routers.length > 0 && routers[0].hotspot_dns) {
+        setHotspotUrl(`http://${routers[0].hotspot_dns}/login`);
+      }
+      if (settings?.hotspot_ssid) {
+        setSsid(settings.hotspot_ssid);
+      }
+    } catch (err) {
+      console.error('Failed to load metadata:', err);
+    }
+  };
+
+  const loadVouchers = async () => {
     try {
       setLoading(true);
-      const res = await fetchApi('/vouchers?limit=50&status=unused');
+      const queryParams = new URLSearchParams({
+        limit: '100',
+        status: 'unused',
+        ...(selectedBatch && { batchId: selectedBatch }),
+      });
+      const res = await fetchApi(`/vouchers?${queryParams.toString()}`);
       const list = res.data || [];
       setVouchers(list);
 
       // Generate QR codes for each voucher
       const qrs: Record<string, string> = {};
       for (const v of list) {
-        // Hotspot auto-login URL format
         const loginUrl = `${hotspotUrl}?username=${encodeURIComponent(v.code)}&password=${encodeURIComponent(v.password)}`;
         qrs[v.code] = await QRCode.toDataURL(loginUrl, { width: 128, margin: 1 });
       }
@@ -35,9 +61,31 @@ export default function VoucherPrintPage() {
     }
   };
 
+  const handleMarkAsPrinted = async () => {
+    if (!vouchers.length) return;
+    try {
+      setMarking(true);
+      const ids = vouchers.map((v) => v.id);
+      await fetchApi('/vouchers/mark-printed', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+      });
+      alert(`ทำเครื่องหมายว่าพิมพ์แล้ว ${ids.length} ใบ`);
+      loadVouchers();
+    } catch (err: any) {
+      alert(`ไม่สามารถทำเครื่องหมาย: ${err.message}`);
+    } finally {
+      setMarking(false);
+    }
+  };
+
   useEffect(() => {
-    loadUnprintedVouchers();
+    loadSettingsAndBatches();
   }, []);
+
+  useEffect(() => {
+    loadVouchers();
+  }, [selectedBatch, hotspotUrl]);
 
   return (
     <div className="p-8 space-y-6">
@@ -52,23 +100,37 @@ export default function VoucherPrintPage() {
           </Link>
           <div>
             <h1 className="text-xl font-bold text-white">พิมพ์บัตรคูปอง (Print Layout)</h1>
-            <p className="text-xs text-slate-400">แบบตารางขนาดมาตรฐาน A4 พร้อม QR Code สแกนล็อกอิน</p>
+            <p className="text-xs text-slate-400">แบบตารางขนาดมาตรฐาน A4 พร้อม QR Code สแกนล็อกอินอัตโนมัติ</p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <span className="text-xs text-slate-400">ชื่อ Wi-Fi:</span>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Batch Selector */}
+          <select
+            value={selectedBatch}
+            onChange={(e) => setSelectedBatch(e.target.value)}
+            className="bg-slate-800 border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-2 focus:outline-none"
+          >
+            <option value="">ทุกชุด (ทั้งหมดที่ยังไม่ใช้)</option>
+            {batches.map((b) => (
+              <option key={b.batch_id} value={b.batch_id}>
+                {b.batch_id} ({b.unused_count} ใบ)
+              </option>
+            ))}
+          </select>
+
+          <div className="flex items-center space-x-1.5">
+            <span className="text-xs text-slate-400">SSID:</span>
             <input
               type="text"
               value={ssid}
               onChange={(e) => setSsid(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-xs text-white rounded px-2.5 py-1.5 focus:outline-none"
+              className="bg-slate-800 border border-slate-700 text-xs text-white rounded px-2.5 py-1.5 focus:outline-none w-36"
             />
           </div>
 
           <button
-            onClick={loadUnprintedVouchers}
+            onClick={loadVouchers}
             disabled={loading}
             className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg"
             title="รีเฟรชข้อมูล"
@@ -77,12 +139,23 @@ export default function VoucherPrintPage() {
           </button>
 
           <button
-            onClick={() => window.print()}
+            onClick={() => {
+              window.print();
+            }}
             disabled={!vouchers.length}
-            className="flex items-center space-x-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-emerald-600/20"
+            className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-emerald-600/20"
           >
             <Printer className="w-4 h-4" />
-            <span>สั่งพิมพ์เดี๋ยวนี้ (Print A4)</span>
+            <span>สั่งพิมพ์ (Print A4)</span>
+          </button>
+
+          <button
+            onClick={handleMarkAsPrinted}
+            disabled={!vouchers.length || marking}
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition"
+            title="ทำเครื่องหมายว่าพิมพ์แล้ว"
+          >
+            {marking ? '...' : 'มาร์กพิมพ์แล้ว'}
           </button>
         </div>
       </div>

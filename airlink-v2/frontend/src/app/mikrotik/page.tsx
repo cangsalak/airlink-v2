@@ -18,12 +18,34 @@ export default function MikrotikPage() {
   const [routerStatus, setRouterStatus] = useState<any>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [testingRouter, setTestingRouter] = useState(false);
+  const [savingRouter, setSavingRouter] = useState(false);
+  const [savedRouterId, setSavedRouterId] = useState<number | null>(null);
 
   // Router setting form
+  const [routerName, setRouterName] = useState('Mikrotik Core');
   const [routerHost, setRouterHost] = useState('192.168.88.1');
   const [routerPort, setRouterPort] = useState('8728');
   const [routerUser, setRouterUser] = useState('admin');
   const [routerPass, setRouterPass] = useState('');
+  const [hotspotDns, setHotspotDns] = useState('hotspot.local');
+
+  const loadRouters = async () => {
+    try {
+      const routers = await fetchApi('/routers');
+      if (routers && routers.length > 0) {
+        const r = routers[0];
+        setSavedRouterId(r.id);
+        setRouterName(r.name || 'Mikrotik Core');
+        setRouterHost(r.host || '192.168.88.1');
+        setRouterPort(String(r.api_port || '8728'));
+        setRouterUser(r.username || 'admin');
+        setRouterPass(r.password || '');
+        setHotspotDns(r.hotspot_dns || 'hotspot.local');
+      }
+    } catch (err) {
+      console.error('Failed to load routers:', err);
+    }
+  };
 
   const loadActiveUsers = async () => {
     try {
@@ -57,6 +79,39 @@ export default function MikrotikPage() {
     }
   };
 
+  const handleSaveRouter = async () => {
+    try {
+      setSavingRouter(true);
+      const payload = {
+        name: routerName,
+        host: routerHost,
+        api_port: Number(routerPort),
+        username: routerUser,
+        password: routerPass,
+        hotspot_dns: hotspotDns,
+      };
+
+      if (savedRouterId) {
+        await fetchApi(`/routers/${savedRouterId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+      } else {
+        const created = await fetchApi('/routers', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        if (created?.id) setSavedRouterId(created.id);
+      }
+      alert('บันทึกการตั้งค่าเราเตอร์เรียบร้อยแล้ว');
+      loadActiveUsers();
+    } catch (err: any) {
+      alert(`บันทึกไม่สำเร็จ: ${err.message}`);
+    } finally {
+      setSavingRouter(false);
+    }
+  };
+
   const handleKick = async (user: any) => {
     const id = user['.id'] || user.id;
     if (!confirm(`ต้องการตัดการเชื่อมต่อผู้ใช้ ${user.user || user.username} หรือไม่?`)) return;
@@ -74,6 +129,7 @@ export default function MikrotikPage() {
   };
 
   useEffect(() => {
+    loadRouters();
     loadActiveUsers();
   }, []);
 
@@ -97,14 +153,14 @@ export default function MikrotikPage() {
 
       {/* Router Connection Card */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
             <div className="p-2.5 bg-sky-500/20 text-sky-400 rounded-xl">
               <RouterIcon className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-bold text-white">การเชื่อมต่อ RouterOS API</h3>
-              <p className="text-xs text-slate-400">พอร์ต API ค่าเริ่มต้นคือ 8728 (อย่าลืมเปิด service api ใน IP &gt; Services)</p>
+              <p className="text-xs text-slate-400">พอร์ต API ค่าเริ่มต้นคือ 8728 (อย่าลืมเปิด service api ใน IP &gt; Services บน Mikrotik)</p>
             </div>
           </div>
 
@@ -113,12 +169,21 @@ export default function MikrotikPage() {
               routerStatus.connected ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
             }`}>
               {routerStatus.connected ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-              <span>{routerStatus.connected ? `เชื่อมต่อสำเร็จ (${routerStatus.identity})` : `เชื่อมต่อไม่สำเร็จ: ${routerStatus.error}`}</span>
+              <span>{routerStatus.connected ? `เชื่อมต่อสำเร็จ (${routerStatus.identity || 'Mikrotik'} v${routerStatus.version || ''})` : `เชื่อมต่อไม่สำเร็จ: ${routerStatus.error}`}</span>
             </div>
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">ชื่อเราเตอร์</label>
+            <input
+              type="text"
+              value={routerName}
+              onChange={(e) => setRouterName(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
+            />
+          </div>
           <div>
             <label className="text-xs text-slate-400 block mb-1">IP ของ Mikrotik</label>
             <input
@@ -156,9 +221,19 @@ export default function MikrotikPage() {
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
             />
           </div>
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Hotspot DNS Name</label>
+            <input
+              type="text"
+              value={hotspotDns}
+              onChange={(e) => setHotspotDns(e.target.value)}
+              placeholder="hotspot.local"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
+            />
+          </div>
         </div>
 
-        <div className="flex justify-end pt-2">
+        <div className="flex items-center justify-end space-x-3 pt-2">
           <button
             onClick={handleTestConnection}
             disabled={testingRouter}
@@ -166,6 +241,13 @@ export default function MikrotikPage() {
           >
             <Cpu className="w-4 h-4" />
             <span>{testingRouter ? 'กำลังทดสอบ...' : 'ทดสอบการเชื่อมต่อ API'}</span>
+          </button>
+          <button
+            onClick={handleSaveRouter}
+            disabled={savingRouter}
+            className="flex items-center space-x-2 px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-sky-600/20"
+          >
+            <span>{savingRouter ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าเราเตอร์'}</span>
           </button>
         </div>
       </div>

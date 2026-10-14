@@ -62,7 +62,8 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: "http://localhost:5000/api"
+      NEXT_PUBLIC_API_URL: "/api"
+      BACKEND_INTERNAL_URL: "http://backend:5000"
       TZ: ${TIMEZONE:-Asia/Bangkok}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"

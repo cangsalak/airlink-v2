@@ -91,8 +91,8 @@ export async function listVouchers(params: {
   batchId?: string;
   search?: string;
 }) {
-  const page = Number(params.page) || 1;
-  const limit = Number(params.limit) || 20;
+  const page = Math.max(1, Number(params.page) || 1);
+  const limit = Math.max(1, Math.min(500, Number(params.limit) || 20));
   const offset = (page - 1) * limit;
 
   let whereClauses: string[] = ['1=1'];
@@ -104,7 +104,7 @@ export async function listVouchers(params: {
   }
   if (params.profileId) {
     whereClauses.push('v.profile_id = ?');
-    values.push(params.profileId);
+    values.push(Number(params.profileId));
   }
   if (params.batchId) {
     whereClauses.push('v.batch_id = ?');
@@ -129,8 +129,8 @@ export async function listVouchers(params: {
      JOIN billing_profiles p ON v.profile_id = p.id 
      WHERE ${whereSql} 
      ORDER BY v.id DESC 
-     LIMIT ? OFFSET ?`,
-    [...values, limit, offset]
+     LIMIT ${limit} OFFSET ${offset}`,
+    values
   );
 
   return {
@@ -139,9 +139,23 @@ export async function listVouchers(params: {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit) || 1,
     },
   };
+}
+
+export async function listBatches() {
+  const [rows]: any = await pool.query(
+    `SELECT batch_id, COUNT(*) as count, MIN(created_at) as created_at,
+            SUM(price) as total_price,
+            SUM(CASE WHEN status = 'unused' THEN 1 ELSE 0 END) as unused_count
+     FROM vouchers
+     WHERE batch_id IS NOT NULL
+     GROUP BY batch_id
+     ORDER BY MIN(id) DESC
+     LIMIT 50`
+  );
+  return rows;
 }
 
 export async function deleteVoucher(id: number) {
@@ -164,3 +178,31 @@ export async function deleteVoucher(id: number) {
     conn.release();
   }
 }
+
+export async function deleteBatch(batchId: string) {
+  const [rows]: any = await pool.query('SELECT code FROM vouchers WHERE batch_id = ?', [batchId]);
+  if (!rows.length) return false;
+
+  const codes = rows.map((r: any) => r.code);
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('DELETE FROM vouchers WHERE batch_id = ?', [batchId]);
+    await conn.query('DELETE FROM radcheck WHERE username IN (?)', [codes]);
+    await conn.query('DELETE FROM radusergroup WHERE username IN (?)', [codes]);
+    await conn.commit();
+    return true;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+export async function markPrinted(ids: number[]) {
+  if (!ids || ids.length === 0) return false;
+  await pool.query('UPDATE vouchers SET is_printed = 1 WHERE id IN (?)', [ids]);
+  return true;
+}
+

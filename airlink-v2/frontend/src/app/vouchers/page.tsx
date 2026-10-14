@@ -19,6 +19,8 @@ export default function VouchersPage() {
   const [pagination, setPagination] = useState<any>({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [batchFilter, setBatchFilter] = useState('');
+  const [batches, setBatches] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
 
@@ -30,6 +32,15 @@ export default function VouchersPage() {
   const [genSameUserPass, setGenSameUserPass] = useState(true);
   const [generating, setGenerating] = useState(false);
 
+  const loadBatches = async () => {
+    try {
+      const data = await fetchApi('/vouchers/batches');
+      setBatches(data || []);
+    } catch (err) {
+      console.error('Failed to load batches:', err);
+    }
+  };
+
   const loadData = async (page = 1) => {
     try {
       setLoading(true);
@@ -38,6 +49,7 @@ export default function VouchersPage() {
         limit: '20',
         ...(search && { search }),
         ...(statusFilter && { status: statusFilter }),
+        ...(batchFilter && { batchId: batchFilter }),
       });
       const res = await fetchApi(`/vouchers?${queryParams.toString()}`);
       setVouchers(res.data || []);
@@ -64,7 +76,9 @@ export default function VouchersPage() {
   useEffect(() => {
     loadData(1);
     loadProfiles();
-  }, [statusFilter]);
+    loadBatches();
+  }, [statusFilter, batchFilter]);
+
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,8 +113,22 @@ export default function VouchersPage() {
     try {
       await fetchApi(`/vouchers/${id}`, { method: 'DELETE' });
       loadData(pagination.page);
+      loadBatches();
     } catch (err: any) {
       alert(`ลบคูปองไม่สำเร็จ: ${err.message}`);
+    }
+  };
+
+  const handleDeleteBatch = async (batchId: string) => {
+    if (!confirm(`ยืนยันลบคูปองทั้งชุด "${batchId}"? คูปองทั้งหมดในชุดนี้จะถูกลบออกจาก FreeRADIUS ด้วย`)) return;
+    try {
+      await fetchApi(`/vouchers/batch/${encodeURIComponent(batchId)}`, { method: 'DELETE' });
+      alert('ลบคูปองทั้งชุดเรียบร้อยแล้ว');
+      setBatchFilter('');
+      loadData(1);
+      loadBatches();
+    } catch (err: any) {
+      alert(`ลบชุดคูปองไม่สำเร็จ: ${err.message}`);
     }
   };
 
@@ -131,8 +159,8 @@ export default function VouchersPage() {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2 w-full sm:w-80">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
+        <form onSubmit={handleSearchSubmit} className="flex items-center space-x-2 w-full md:w-80">
           <div className="relative w-full">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -143,12 +171,38 @@ export default function VouchersPage() {
               className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:border-sky-500"
             />
           </div>
-          <button type="submit" className="px-3 py-2 bg-slate-800 text-slate-300 rounded-lg text-sm hover:bg-slate-700">
+          <button type="submit" className="px-3 py-2 bg-slate-800 text-slate-300 rounded-lg text-sm hover:bg-slate-700 shrink-0">
             ค้นหา
           </button>
         </form>
 
-        <div className="flex items-center space-x-3 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+          {/* Batch Selector */}
+          <select
+            value={batchFilter}
+            onChange={(e) => setBatchFilter(e.target.value)}
+            className="bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-sky-500"
+          >
+            <option value="">ทุกชุดที่สร้าง (All Batches)</option>
+            {batches.map((b) => (
+              <option key={b.batch_id} value={b.batch_id}>
+                {b.batch_id} ({b.count} ใบ)
+              </option>
+            ))}
+          </select>
+
+          {/* Delete Batch Button if batch selected */}
+          {batchFilter && (
+            <button
+              onClick={() => handleDeleteBatch(batchFilter)}
+              className="flex items-center space-x-1.5 px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-medium transition"
+              title="ลบคูปองทั้งหมดในชุดนี้"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>ลบทั้งชุด</span>
+            </button>
+          )}
+
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -159,6 +213,7 @@ export default function VouchersPage() {
             <option value="active">กำลังใช้งาน (Active)</option>
             <option value="expired">หมดอายุ (Expired)</option>
           </select>
+
           <button
             onClick={() => loadData(pagination.page)}
             disabled={loading}

@@ -57,6 +57,15 @@ router.get('/vouchers', async (req, res) => {
   }
 });
 
+router.get('/vouchers/batches', async (req, res) => {
+  try {
+    const batches = await voucherService.listBatches();
+    res.json(batches);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/vouchers/generate', async (req, res) => {
   try {
     const { profileId, count, prefix, codeLength, sameUserPass } = req.body;
@@ -71,6 +80,25 @@ router.post('/vouchers/generate', async (req, res) => {
       sameUserPass: sameUserPass !== undefined ? Boolean(sameUserPass) : true,
     });
     res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/vouchers/mark-printed', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    const success = await voucherService.markPrinted(ids || []);
+    res.json({ success });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/vouchers/batch/:batchId', async (req, res) => {
+  try {
+    const success = await voucherService.deleteBatch(req.params.batchId);
+    res.json({ success });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -129,9 +157,42 @@ router.post('/routers', async (req, res) => {
     const [result]: any = await pool.query(
       `INSERT INTO routers (name, host, api_port, username, password, hotspot_dns) 
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [name, host, api_port || 8728, username, password || '', hotspot_dns || 'hotspot.local']
+      [name || host, host, api_port || 8728, username || 'admin', password || '', hotspot_dns || 'hotspot.local']
     );
     res.json({ id: result.insertId, ...req.body });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/routers/:id', async (req, res) => {
+  try {
+    const { name, host, api_port, username, password, hotspot_dns, is_active } = req.body;
+    await pool.query(
+      `UPDATE routers 
+       SET name = ?, host = ?, api_port = ?, username = ?, password = ?, hotspot_dns = ?, is_active = ?
+       WHERE id = ?`,
+      [
+        name || host,
+        host,
+        api_port || 8728,
+        username || 'admin',
+        password || '',
+        hotspot_dns || 'hotspot.local',
+        is_active !== undefined ? Number(is_active) : 1,
+        Number(req.params.id),
+      ]
+    );
+    res.json({ success: true, id: req.params.id });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/routers/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM routers WHERE id = ?', [Number(req.params.id)]);
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -169,19 +230,47 @@ router.post('/mikrotik/kick-user', async (req, res) => {
   }
 });
 
+// System Settings Endpoints
+router.get('/settings', async (req, res) => {
+  try {
+    const [rows]: any = await pool.query('SELECT `key`, `value` FROM system_settings');
+    const settings: Record<string, string> = {};
+    for (const r of rows) {
+      settings[r.key] = r.value;
+    }
+    res.json(settings);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/settings', async (req, res) => {
+  try {
+    const settings = req.body;
+    for (const [key, value] of Object.entries(settings)) {
+      await pool.query(
+        'INSERT INTO system_settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)',
+        [key, String(value)]
+      );
+    }
+    res.json({ success: true, settings });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Logs (Accounting Radacct)
 router.get('/logs/radacct', async (req, res) => {
   try {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit) || 20));
     const offset = (page - 1) * limit;
 
     const [countRes]: any = await pool.query('SELECT COUNT(*) as total FROM radacct');
     const total = countRes[0].total;
 
     const [rows]: any = await pool.query(
-      'SELECT * FROM radacct ORDER BY radacctid DESC LIMIT ? OFFSET ?',
-      [limit, offset]
+      `SELECT * FROM radacct ORDER BY radacctid DESC LIMIT ${limit} OFFSET ${offset}`
     );
 
     res.json({
@@ -190,10 +279,11 @@ router.get('/logs/radacct', async (req, res) => {
         total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limit) || 1,
       },
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
+
