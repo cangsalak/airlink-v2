@@ -389,6 +389,16 @@ export default function Desktop({
     setActiveWindowId(app.id);
   };
 
+  const handleMinimizeAll = () => {
+    setOpenWindows((prev) => prev.map((w) => ({ ...w, isMinimized: true })));
+    setActiveWindowId(null);
+  };
+
+  const handleCloseAll = () => {
+    setOpenWindows([]);
+    setActiveWindowId(null);
+  };
+
   useEffect(() => {
     // Load persisted wallpaper
     const savedWp = localStorage.getItem('airlink_wallpaper');
@@ -423,16 +433,6 @@ export default function Desktop({
       if (targetApp) {
         handleOpenApp(targetApp);
       }
-    };
-
-    const handleMinimizeAll = () => {
-      setOpenWindows((prev) => prev.map((w) => ({ ...w, isMinimized: true })));
-      setActiveWindowId(null);
-    };
-
-    const handleCloseAll = () => {
-      setOpenWindows([]);
-      setActiveWindowId(null);
     };
 
     const handleWpChange = (e: any) => {

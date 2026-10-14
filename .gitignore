@@ -21,6 +21,7 @@ out/
 .DS_Store
 Thumbs.db
 
-# IDE
+# IDE & TypeScript
 .vscode/
 .idea/
+*.tsbuildinfo

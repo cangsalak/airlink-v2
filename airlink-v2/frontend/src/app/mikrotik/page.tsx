@@ -9,10 +9,15 @@ import {
   CheckCircle, 
   AlertCircle,
   Plus,
-  Cpu
+  Cpu,
+  Terminal,
+  Copy,
+  Check,
+  ShieldCheck,
+  Zap
 } from 'lucide-react';
 import { fetchApi } from '@/lib/api';
-import { notifySuccess, notifyError } from '@/lib/notify';
+import { notifySuccess, notifyError, notifyInfo } from '@/lib/notify';
 
 export default function MikrotikPage() {
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
@@ -21,6 +26,11 @@ export default function MikrotikPage() {
   const [testingRouter, setTestingRouter] = useState(false);
   const [savingRouter, setSavingRouter] = useState(false);
   const [savedRouterId, setSavedRouterId] = useState<number | null>(null);
+
+  // Captive Portal Gateway states
+  const [portalConfig, setPortalConfig] = useState<any>(null);
+  const [portalSyncing, setPortalSyncing] = useState(false);
+  const [scriptCopied, setScriptCopied] = useState(false);
 
   // Router setting form
   const [routerName, setRouterName] = useState('Mikrotik Core');
@@ -129,9 +139,45 @@ export default function MikrotikPage() {
     }
   };
 
+  const loadPortalConfig = async () => {
+    try {
+      const res = await fetchApi('/mikrotik/portal-config');
+      setPortalConfig(res);
+    } catch (err) {
+      console.error('Failed to load portal config:', err);
+    }
+  };
+
+  const handleSyncPortal = async () => {
+    try {
+      setPortalSyncing(true);
+      const res = await fetchApi('/mikrotik/portal-sync', { method: 'POST' });
+      if (res.success) {
+        notifySuccess('ซิงค์ Captive Portal สำเร็จ', res.details);
+        loadPortalConfig();
+      } else {
+        notifyError('ไม่สามารถซิงค์ได้', res.details);
+      }
+    } catch (err: any) {
+      notifyError('เกิดข้อผิดพลาดในการซิงค์', err.message);
+    } finally {
+      setPortalSyncing(false);
+    }
+  };
+
+  const handleCopyScript = () => {
+    if (portalConfig?.script) {
+      navigator.clipboard.writeText(portalConfig.script);
+      setScriptCopied(true);
+      notifySuccess('คัดลอกสคริปต์แล้ว', 'นำไปวางใน WinBox -> New Terminal ได้ทันที');
+      setTimeout(() => setScriptCopied(false), 2500);
+    }
+  };
+
   useEffect(() => {
     loadRouters();
     loadActiveUsers();
+    loadPortalConfig();
   }, []);
 
   return (
@@ -139,17 +185,81 @@ export default function MikrotikPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">มอนิเตอร์ Mikrotik (Live Monitor)</h1>
-          <p className="text-xs text-slate-500">ตรวจสอบผู้ใช้งานออนไลน์สด และควบคุมเราเตอร์ผ่าน RouterOS API (Port 8728)</p>
+          <h1 className="text-xl font-bold text-slate-800">จัดการเราเตอร์ MikroTik (Captive Portal Gateway)</h1>
+          <p className="text-xs text-slate-500">
+            MikroTik ทำหน้าที่เป็น Captive Portal Gateway (รับ Traffic และส่งหน้า Login ผ่าน RADIUS ของเครื่อง AirLink)
+          </p>
         </div>
-        <button
-          onClick={loadActiveUsers}
-          disabled={loadingUsers}
-          className="flex items-center space-x-1.5 px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition shadow-sm self-start"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loadingUsers ? 'animate-spin' : ''}`} />
-          <span>รีเฟรชผู้ใช้ออนไลน์</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadActiveUsers}
+            disabled={loadingUsers}
+            className="flex items-center space-x-1.5 px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition shadow-sm self-start"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loadingUsers ? 'animate-spin' : ''}`} />
+            <span>รีเฟรชผู้ใช้ออนไลน์</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Architecture Role Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 rounded-2xl p-5 shadow-xl text-white">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-300">
+                สถาปัตยกรรมระบบ Airlink Hotspot
+              </span>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                portalConfig?.routerConnected
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${portalConfig?.routerConnected ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                {portalConfig?.routerConnected ? 'เราเตอร์ MikroTik เชื่อมต่อปกติ' : 'ยังไม่ได้เชื่อมต่อเราเตอร์ MikroTik'}
+              </span>
+            </div>
+            <h3 className="text-sm font-bold text-white">
+              บทบาท MikroTik: Hotspot Gateway & Captive Portal เท่านั้น
+            </h3>
+            <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
+              เครื่อง AirLink ทำหน้าที่ปล่อยสัญญาณ Wi-Fi, จัดการฐานข้อมูลผู้ใช้ และ FreeRADIUS Server ในขณะที่ MikroTik ทำหน้าที่เพียงตรวจจับ Traffic ของเครื่องลูกข่ายแล้วเด้งหน้าล็อกอิน (Captive Portal) ส่งมาตรวจสอบความถูกต้องกับ AirLink
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 self-start lg:self-center flex-shrink-0">
+            <button
+              onClick={handleCopyScript}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-xl text-xs font-semibold text-slate-200 transition shadow-sm"
+            >
+              {scriptCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{scriptCopied ? 'คัดลอกสคริปต์แล้ว' : 'คัดลอก RouterOS Script'}</span>
+            </button>
+            <button
+              onClick={handleSyncPortal}
+              disabled={portalSyncing}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md transition"
+            >
+              <Zap className={`w-3.5 h-3.5 ${portalSyncing ? 'animate-bounce' : ''}`} />
+              <span>{portalSyncing ? 'กำลังซิงค์...' : 'ซิงค์ Portal สู่ MikroTik'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* RouterOS Terminal Script Preview */}
+        {portalConfig?.script && (
+          <div className="mt-4 pt-3 border-t border-indigo-500/20">
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
+              <span className="font-mono text-indigo-300 flex items-center gap-1">
+                <Terminal className="w-3 h-3" /> สคริปต์คำสั่งตั้งค่า Hotspot + RADIUS Client (รันบน WinBox Terminal)
+              </span>
+              <span className="text-[10px] text-slate-400">AirLink IP: {portalConfig.airlinkServerIp}</span>
+            </div>
+            <pre className="p-3 bg-black/60 border border-slate-800 rounded-xl text-[11px] font-mono text-emerald-300 overflow-x-auto max-h-36 scrollbar-thin">
+              {portalConfig.script}
+            </pre>
+          </div>
+        )}
       </div>
 
       {/* Router Connection Card */}

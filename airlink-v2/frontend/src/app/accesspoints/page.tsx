@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Radio, Plus, Trash2, Edit3, Activity, Search, RefreshCw, CheckCircle, XCircle, MapPin, Shield, Router, Signal } from 'lucide-react';
+import { Radio, Plus, Trash2, Edit3, Activity, Search, RefreshCw, CheckCircle, XCircle, MapPin, Shield, Router, Signal, Wifi, Settings, Power, RotateCcw, Sliders } from 'lucide-react';
 import { fetchApi } from '@/lib/api';
 
 interface AccessPoint {
@@ -27,6 +27,16 @@ export default function AccessPointsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingAp, setEditingAp] = useState<AccessPoint | null>(null);
 
+  // AirLink Host Wi-Fi AP States
+  const [wifiAp, setWifiAp] = useState<any>(null);
+  const [wifiApLoading, setWifiApLoading] = useState(false);
+  const [wifiApModalOpen, setWifiApModalOpen] = useState(false);
+  const [apSsid, setApSsid] = useState('@Airlink-Hotspot');
+  const [apBand, setApBand] = useState('2.4GHz + 5GHz');
+  const [apChannel, setApChannel] = useState(6);
+  const [apSecurity, setApSecurity] = useState('open');
+  const [apEnabled, setApEnabled] = useState(true);
+
   // Form states
   const [formName, setFormName] = useState('');
   const [formIp, setFormIp] = useState('');
@@ -37,6 +47,62 @@ export default function AccessPointsPage() {
   const [formTambon, setFormTambon] = useState('');
   const [formAumpur, setFormAumpur] = useState('');
   const [formProvince, setFormProvince] = useState('');
+
+  const loadWifiAp = async () => {
+    try {
+      setWifiApLoading(true);
+      const res = await fetchApi('/airlink/wifi-ap');
+      if (res && res.config) {
+        setWifiAp(res);
+        setApSsid(res.config.ssid || '@Airlink-Hotspot');
+        setApBand(res.config.band || '2.4GHz + 5GHz');
+        setApChannel(res.config.channel || 6);
+        setApSecurity(res.config.security || 'open');
+        setApEnabled(Boolean(res.config.is_enabled));
+      }
+    } catch (err) {
+      console.error('Failed to load Airlink Wi-Fi AP:', err);
+    } finally {
+      setWifiApLoading(false);
+    }
+  };
+
+  const handleSaveWifiAp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setWifiApLoading(true);
+      const res = await fetchApi('/airlink/wifi-ap', {
+        method: 'POST',
+        body: JSON.stringify({
+          ssid: apSsid,
+          band: apBand,
+          channel: Number(apChannel),
+          security: apSecurity,
+          is_enabled: apEnabled,
+        }),
+      });
+      setWifiApModalOpen(false);
+      loadWifiAp();
+      alert('บันทึกการตั้งค่าตัวปล่อยไวไฟสำเร็จ!');
+    } catch (err: any) {
+      alert('บันทึกไม่สำเร็จ: ' + err.message);
+    } finally {
+      setWifiApLoading(false);
+    }
+  };
+
+  const handleRestartWifiAp = async () => {
+    try {
+      setWifiApLoading(true);
+      await fetchApi('/airlink/wifi-ap/restart', { method: 'POST' });
+      alert('สั่งรีสตาร์ทตัวปล่อยสัญญาณ Wi-Fi บนเครื่อง AirLink เรียบร้อย');
+      loadWifiAp();
+    } catch (err: any) {
+      alert('รีสตาร์ทไม่สำเร็จ: ' + err.message);
+    } finally {
+      setWifiApLoading(false);
+    }
+  };
 
   const loadAps = async () => {
     try {
@@ -52,6 +118,7 @@ export default function AccessPointsPage() {
 
   useEffect(() => {
     loadAps();
+    loadWifiAp();
   }, []);
 
   const handleOpenAdd = () => {
@@ -186,6 +253,64 @@ export default function AccessPointsPage() {
             <Plus className="w-3.5 h-3.5" />
             <span>เพิ่มจุดเชื่อมต่อ</span>
           </button>
+        </div>
+      </div>
+
+      {/* AirLink Host Wi-Fi AP Controller Card */}
+      <div className="bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 border border-sky-500/30 rounded-2xl p-5 shadow-xl text-white relative overflow-hidden">
+        <div className="absolute right-0 top-0 bottom-0 w-80 bg-gradient-to-l from-sky-500/10 to-transparent pointer-events-none" />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center space-x-4">
+            <div className="w-12 h-12 rounded-2xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400 shadow-inner flex-shrink-0">
+              <Wifi className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-300">
+                  เครื่อง Airlink: ตัวปล่อย Wi-Fi (Host AP)
+                </span>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                  apEnabled ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${apEnabled ? 'bg-emerald-400 animate-ping' : 'bg-rose-400'}`} />
+                  {apEnabled ? 'กำลังปล่อยสัญญาณ (Broadcasting)' : 'ปิดการปล่อยสัญญาณ (Stopped)'}
+                </span>
+              </div>
+              <h2 className="text-lg font-black text-white mt-1 flex items-center gap-2 font-mono">
+                SSID: {apSsid}
+              </h2>
+              <p className="text-xs text-slate-300 mt-0.5">
+                ย่านความถี่: <span className="font-semibold text-sky-300">{apBand}</span> · ช่องสัญญาณ: <span className="font-semibold text-sky-300">Channel {apChannel}</span> · ความปลอดภัย: <span className="font-semibold text-sky-300">{apSecurity === 'open' ? 'Open (Captive Portal)' : apSecurity}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start lg:self-center">
+            <button
+              onClick={handleRestartWifiAp}
+              disabled={wifiApLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition"
+              title="รีสตาร์ทตัวปล่อยสัญญาณ"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${wifiApLoading ? 'animate-spin' : ''}`} />
+              <span>รีสตาร์ท AP</span>
+            </button>
+            <button
+              onClick={() => setWifiApModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold shadow-md transition"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>ตั้งค่าตัวปล่อยไวไฟ</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-sky-500/20 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+          <div className="flex items-center gap-1.5">
+            <Shield className="w-3.5 h-3.5 text-sky-400" />
+            <span>สถาปัตยกรรมระบบ: เครื่อง AirLink ปล่อยสัญญาณ Wi-Fi + ทำหน้าที่ FreeRADIUS · เราเตอร์ MikroTik ทำหน้าที่เป็น Captive Portal Gateway</span>
+          </div>
+          <span className="font-mono text-slate-400">Interface: {wifiAp?.config?.interface || 'wlan0'}</span>
         </div>
       </div>
 
@@ -428,6 +553,125 @@ export default function AccessPointsPage() {
                   className="px-5 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-xl shadow-sm transition"
                 >
                   บันทึกข้อมูล
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Configure AirLink Host Wi-Fi AP */}
+      {wifiApModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center space-x-2">
+                <Wifi className="w-5 h-5 text-sky-600" />
+                <h3 className="font-bold text-slate-800 text-sm">ตั้งค่าตัวปล่อยไวไฟ (เครื่อง AirLink Host AP)</h3>
+              </div>
+              <button
+                onClick={() => setWifiApModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveWifiAp} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  ชื่อสัญญาณ Wi-Fi (SSID)
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={apSsid}
+                  onChange={(e) => setApSsid(e.target.value)}
+                  placeholder="@Airlink-Hotspot"
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 font-bold text-slate-800"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">ชื่อนี้จะปรากฏให้ผู้ใช้ในพื้นที่ค้นหาและเชื่อมต่อ</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">ย่านความถี่ (Band)</label>
+                  <select
+                    value={apBand}
+                    onChange={(e) => setApBand(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-700"
+                  >
+                    <option value="2.4GHz + 5GHz">Dual-Band (2.4GHz + 5GHz)</option>
+                    <option value="2.4GHz">2.4 GHz Only</option>
+                    <option value="5GHz">5 GHz Only</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">ช่องสัญญาณ (Channel)</label>
+                  <select
+                    value={apChannel}
+                    onChange={(e) => setApChannel(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-700"
+                  >
+                    <option value={1}>Channel 1 (2.412 GHz)</option>
+                    <option value={6}>Channel 6 (2.437 GHz - แนะนำ)</option>
+                    <option value={11}>Channel 11 (2.462 GHz)</option>
+                    <option value={36}>Channel 36 (5 GHz)</option>
+                    <option value={149}>Channel 149 (5 GHz)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">ระบบความปลอดภัย</label>
+                  <select
+                    value={apSecurity}
+                    onChange={(e) => setApSecurity(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-sky-500 text-slate-700"
+                  >
+                    <option value="open">Open (เปิดสำหรับ Hotspot Captive Portal)</option>
+                    <option value="wpa2">WPA2-PSK (ต้องใส่รหัส Wi-Fi)</option>
+                    <option value="wpa3">WPA3-Personal</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">สถานะเปิด/ปิด Wi-Fi</label>
+                  <button
+                    type="button"
+                    onClick={() => setApEnabled(!apEnabled)}
+                    className={`w-full py-2 px-3 text-xs rounded-xl font-semibold border transition flex items-center justify-center gap-1.5 ${
+                      apEnabled
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                        : 'bg-rose-50 text-rose-700 border-rose-300'
+                    }`}
+                  >
+                    <Power className="w-3.5 h-3.5" />
+                    <span>{apEnabled ? 'เปิดใช้งาน (Active)' : 'ปิดใช้งาน (Disabled)'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800">
+                💡 <b>หมายเหตุ:</b> ผู้ใช้ที่เชื่อมต่อ Wi-Fi จากเครื่อง AirLink จะได้รับ IP และถูกเราเตอร์ MikroTik ส่งต่อไปยังหน้า Captive Portal ทันที
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setWifiApModalOpen(false)}
+                  className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={wifiApLoading}
+                  className="px-5 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-xl shadow-sm transition"
+                >
+                  {wifiApLoading ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า AP'}
                 </button>
               </div>
             </form>

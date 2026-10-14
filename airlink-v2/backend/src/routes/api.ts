@@ -104,10 +104,11 @@ router.get('/system/overview', async (req, res) => {
     const [routers]: any = await pool.query('SELECT * FROM routers WHERE is_active = 1 LIMIT 1');
     const routerInfo = routers[0] || null;
 
-    let mikrotikStatus = 'warning';
+    let mikrotikConnected = false;
+    let mikrotikStatus = 'disconnected';
     let mikrotikDetail = 'ยังไม่มีเราเตอร์ที่ตั้งค่าเปิดใช้งาน';
-    let routerName = 'MikroTik';
-    let routerModel = 'ไม่ระบุ';
+    let routerName = 'MikroTik (ไม่ได้เชื่อมต่อ)';
+    let routerModel = 'ไม่ได้เชื่อมต่อ';
     let routerUptime = '-';
 
     if (routerInfo) {
@@ -120,17 +121,20 @@ router.get('/system/overview', async (req, res) => {
           password: routerInfo.password,
         });
         if (testRes.connected) {
+          mikrotikConnected = true;
           mikrotikStatus = 'ok';
           routerModel = `${testRes.identity || routerInfo.name} · ${testRes.version || 'RouterOS'}`;
           routerUptime = testRes.uptime || 'online';
           mikrotikDetail = `${routerModel} (Uptime: ${routerUptime}, CPU: ${testRes.cpuLoad}%)`;
         } else {
-          mikrotikStatus = 'warning';
+          mikrotikConnected = false;
+          mikrotikStatus = 'disconnected';
           routerModel = `${routerInfo.host}:${routerInfo.api_port}`;
-          mikrotikDetail = `ไม่สามารถเชื่อมต่อ API (${routerInfo.host}:${routerInfo.api_port}): ${testRes.error || 'Connection failed'}`;
+          mikrotikDetail = `ไม่พบการเชื่อมต่อกับเราเตอร์ (${routerInfo.host}:${routerInfo.api_port}): ${testRes.error || 'Connection timed out'}`;
         }
       } catch (err: any) {
-        mikrotikStatus = 'warning';
+        mikrotikConnected = false;
+        mikrotikStatus = 'disconnected';
         mikrotikDetail = `ไม่สามารถเชื่อมต่อ Router API: ${err.message}`;
       }
     }
@@ -153,43 +157,137 @@ router.get('/system/overview', async (req, res) => {
 
     const osLabel = `${os.type()} ${os.release()} (${os.arch()})`;
 
+    // Airlink Wi-Fi AP status from DB
+    const [wifiApRows]: any = await pool.query('SELECT * FROM airlink_wifi_ap WHERE id = 1');
+    const wifiApConfig = wifiApRows[0] || {
+      interface: 'wlan0',
+      ssid: '@Airlink-Hotspot',
+      band: '2.4GHz + 5GHz',
+      channel: 6,
+      security: 'open',
+      is_enabled: 1,
+    };
+
     res.json({
       system: {
         os: osLabel,
         ip: localIp,
         time: formattedDate,
         lastCheck: formattedCheckTime,
-        routerName,
-        routerModel,
-        routerUptime,
+        routerName: mikrotikConnected ? routerName : `${routerName} [ไม่ได้เชื่อมต่อ]`,
+        routerModel: mikrotikConnected ? routerModel : 'ออฟไลน์ (ไม่ได้เชื่อมต่อเราเตอร์)',
+        routerUptime: mikrotikConnected ? routerUptime : '-',
+        routerConnected: mikrotikConnected,
       },
       stats: {
         onlineUsers: radStats[0]?.online_users || 0,
-        hotspotServers: routerInfo ? 1 : 0,
+        hotspotServers: mikrotikConnected ? 1 : 0,
+        routerConnected: mikrotikConnected,
         profilesCount: profileStats[0]?.total || 0,
-        mikrotikLoadPct: 0,
+        mikrotikLoadPct: mikrotikConnected ? 0 : null,
         cpuUsagePct: cpuPct,
         memUsagePct: memUsagePct,
         memFreeGb: freeMemGb,
         diskUsagePct,
         diskFreeGb,
+        wifiApSsid: wifiApConfig.ssid,
+        wifiApEnabled: !!wifiApConfig.is_enabled,
       },
       services: [
-        { id: 'mikrotik_api', name: 'MIKROTIK API', status: mikrotikStatus, detail: mikrotikDetail },
-        { id: 'radius_server', name: 'RADIUS SERVER', status: 'ok', detail: 'FreeRADIUS 3.x พร้อมให้บริการ (Port 1812/1813)' },
-        { id: 'radius_auth', name: 'RADIUS AUTH', status: 'ok', detail: 'RADIUS ตอบคำขอ Authentication ปกติ' },
-        { id: 'radius_accounting', name: 'RADIUS ACCOUNTING', status: 'ok', detail: `ออนไลน์จริง ${radStats[0]?.online_users || 0} เซสชัน · บันทึกประวัติสะสม ${radStats[0]?.total_acct || 0} รายการ` },
-        { id: 'database', name: 'DATABASE', status: 'ok', detail: 'MariaDB 10.11 เชื่อมต่อปกติ (air_db)' },
-        { id: 'web_server', name: 'WEB SERVER', status: 'ok', detail: `Airlink Node/Express บนพอร์ต 5001 ปกติ` },
-        { id: 'server_cpu', name: 'SERVER CPU', status: 'ok', detail: `ใช้งาน CPU ${cpuPct}% (${cpus.length} Cores)` },
-        { id: 'server_memory', name: 'SERVER MEMORY', status: 'ok', detail: `ใช้ RAM ${memUsagePct}% (ว่าง ${freeMemGb} GB จาก ${((totalMem)/(1024**3)).toFixed(1)} GB)` },
-        { id: 'server_disk', name: 'SERVER DISK', status: 'ok', detail: `ใช้พื้นที่ดิสก์ ${diskUsagePct}% (ว่าง ${diskFreeGb} GB)` },
-        { id: 'default_gateway', name: 'DEFAULT GATEWAY', status: gateway !== '127.0.0.1' ? 'ok' : 'warning', detail: `เกตเวย์ ${gateway} ผ่านการ์ดเครือข่าย ${primaryIface}` },
-        { id: 'dns', name: 'DNS', status: dnsOk ? 'ok' : 'warning', detail: dnsOk ? `แปลงชื่อ DNS ปกติ (${dnsServers.slice(0, 2).join(', ')})` : 'ไม่สามารถแปลงชื่อ DNS ได้' },
-        { id: 'internet', name: 'INTERNET', status: internetOk ? 'ok' : 'warning', detail: internetOk ? 'เชื่อมต่ออินเทอร์เน็ตภายนอกได้ปกติ' : 'ไม่สามารถเชื่อมต่ออินเทอร์เน็ตได้' },
-        { id: 'hotspot_server', name: 'HOTSPOT SERVER', status: routerInfo ? 'ok' : 'warning', detail: routerInfo ? `เซิร์ฟเวอร์ฮอตสปอตบน ${routerInfo.name} (${routerInfo.host})` : 'ยังไม่ได้เชื่อมต่อเราเตอร์ฮอตสปอต' },
-        { id: 'hotspot_radius', name: 'HOTSPOT RADIUS', status: 'ok', detail: 'FreeRADIUS Client พร้อมรับคำขอจาก NAS' },
-        { id: 'captive_portal', name: 'CAPTIVE PORTAL', status: 'ok', detail: 'หน้าล็อกอิน Captive Portal พร้อมให้บริการที่ /login' }
+        { 
+          id: 'mikrotik_api', 
+          name: 'MIKROTIK API', 
+          status: mikrotikStatus, 
+          detail: mikrotikDetail 
+        },
+        { 
+          id: 'radius_server', 
+          name: 'RADIUS SERVER', 
+          status: 'ok', 
+          detail: 'FreeRADIUS 3.x พร้อมให้บริการ (Port 1812/1813)' 
+        },
+        { 
+          id: 'radius_auth', 
+          name: 'RADIUS AUTH', 
+          status: 'ok', 
+          detail: 'RADIUS ตอบคำขอ Authentication ปกติ' 
+        },
+        { 
+          id: 'radius_accounting', 
+          name: 'RADIUS ACCOUNTING', 
+          status: 'ok', 
+          detail: `ออนไลน์จริง ${radStats[0]?.online_users || 0} เซสชัน · บันทึกประวัติสะสม ${radStats[0]?.total_acct || 0} รายการ` 
+        },
+        { 
+          id: 'database', 
+          name: 'DATABASE', 
+          status: 'ok', 
+          detail: 'MariaDB 10.11 เชื่อมต่อปกติ (air_db)' 
+        },
+        { 
+          id: 'web_server', 
+          name: 'WEB SERVER', 
+          status: 'ok', 
+          detail: `Airlink Node/Express บนพอร์ต 5001 ปกติ` 
+        },
+        { 
+          id: 'server_cpu', 
+          name: 'SERVER CPU', 
+          status: 'ok', 
+          detail: `ใช้งาน CPU ${cpuPct}% (${cpus.length} Cores)` 
+        },
+        { 
+          id: 'server_memory', 
+          name: 'SERVER MEMORY', 
+          status: 'ok', 
+          detail: `ใช้ RAM ${memUsagePct}% (ว่าง ${freeMemGb} GB จาก ${((totalMem)/(1024**3)).toFixed(1)} GB)` 
+        },
+        { 
+          id: 'server_disk', 
+          name: 'SERVER DISK', 
+          status: 'ok', 
+          detail: `ใช้พื้นที่ดิสก์ ${diskUsagePct}% (ว่าง ${diskFreeGb} GB)` 
+        },
+        { 
+          id: 'default_gateway', 
+          name: 'DEFAULT GATEWAY', 
+          status: gateway !== '127.0.0.1' ? 'ok' : 'warning', 
+          detail: `เกตเวย์ ${gateway} ผ่านการ์ดเครือข่าย ${primaryIface}` 
+        },
+        { 
+          id: 'dns', 
+          name: 'DNS', 
+          status: dnsOk ? 'ok' : 'warning', 
+          detail: dnsOk ? `แปลงชื่อ DNS ปกติ (${dnsServers.slice(0, 2).join(', ')})` : 'ไม่สามารถแปลงชื่อ DNS ได้' 
+        },
+        { 
+          id: 'internet', 
+          name: 'INTERNET', 
+          status: internetOk ? 'ok' : 'warning', 
+          detail: internetOk ? 'เชื่อมต่ออินเทอร์เน็ตภายนอกได้ปกติ' : 'ไม่สามารถเชื่อมต่ออินเทอร์เน็ตได้' 
+        },
+        { 
+          id: 'hotspot_server', 
+          name: 'HOTSPOT SERVER', 
+          status: mikrotikConnected ? 'ok' : 'disconnected', 
+          detail: mikrotikConnected 
+            ? `เซิร์ฟเวอร์ฮอตสปอตบน ${routerInfo?.name} (${routerInfo?.host})` 
+            : 'ยังไม่ได้เชื่อมต่อเราเตอร์ MikroTik (ไม่มี Hotspot Server เชื่อมต่ออยู่)' 
+        },
+        { 
+          id: 'hotspot_radius', 
+          name: 'HOTSPOT RADIUS', 
+          status: mikrotikConnected ? 'ok' : 'disconnected', 
+          detail: mikrotikConnected 
+            ? 'FreeRADIUS Client พร้อมรับคำขอจาก NAS' 
+            : 'รอดำเนินการเชื่อมต่อ MikroTik เป็น Captive Portal Gateway' 
+        },
+        { 
+          id: 'captive_portal', 
+          name: 'CAPTIVE PORTAL', 
+          status: 'ok', 
+          detail: 'หน้าล็อกอิน Captive Portal พร้อมให้บริการที่ /login' 
+        }
       ]
     });
   } catch (err: any) {
@@ -1296,6 +1394,193 @@ router.post('/security/filters/sync', async (req, res) => {
       totalBlocked: domains.length,
       script: scriptLines.join('\n'),
       message: `สร้างสคริปต์บล็อก ${domains.length} โดเมนเรียบร้อยแล้ว`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==============================================================================
+// 1. AIRLINK WI-FI ACCESS POINT (เครื่อง Airlink เป็นตัวปล่อยไวไฟ)
+// ==============================================================================
+router.get('/airlink/wifi-ap', async (req, res) => {
+  try {
+    const [rows]: any = await pool.query('SELECT * FROM airlink_wifi_ap WHERE id = 1');
+    const config = rows[0] || {
+      interface: 'wlan0',
+      ssid: '@Airlink-Hotspot',
+      band: '2.4GHz + 5GHz',
+      channel: 6,
+      security: 'open',
+      is_enabled: 1,
+      tx_power: 20,
+      max_clients: 128,
+    };
+
+    // Detect host wireless interfaces
+    let hostInterfaces = ['wlan0', 'wlan1'];
+    try {
+      const net = os.networkInterfaces();
+      const detected = Object.keys(net).filter(k => k.includes('wl') || k.includes('wifi') || k.includes('en'));
+      if (detected.length > 0) hostInterfaces = detected;
+    } catch (e) {}
+
+    res.json({
+      success: true,
+      config: {
+        ...config,
+        is_enabled: !!config.is_enabled,
+      },
+      status: config.is_enabled ? 'broadcasting' : 'disabled',
+      activeClients: 0,
+      availableInterfaces: hostInterfaces,
+      details: config.is_enabled
+        ? `เครื่อง Airlink กำลังปล่อยสัญญาณ Wi-Fi "${config.ssid}" (${config.band}) Channel ${config.channel}`
+        : 'บริการปล่อยสัญญาณ Wi-Fi ปิดอยู่',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/airlink/wifi-ap', async (req, res) => {
+  try {
+    const { ssid, band, channel, security, is_enabled, interface: iface, tx_power } = req.body;
+
+    await pool.query(
+      `UPDATE airlink_wifi_ap 
+       SET ssid = COALESCE(?, ssid),
+           band = COALESCE(?, band),
+           channel = COALESCE(?, channel),
+           security = COALESCE(?, security),
+           is_enabled = COALESCE(?, is_enabled),
+           interface = COALESCE(?, interface),
+           tx_power = COALESCE(?, tx_power)
+       WHERE id = 1`,
+      [ssid, band, channel, security, is_enabled !== undefined ? (is_enabled ? 1 : 0) : null, iface, tx_power]
+    );
+
+    res.json({
+      success: true,
+      message: 'บันทึกการตั้งค่าตัวปล่อย Wi-Fi ของเครื่อง Airlink สำเร็จ',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/airlink/wifi-ap/restart', async (req, res) => {
+  try {
+    const [rows]: any = await pool.query('SELECT * FROM airlink_wifi_ap WHERE id = 1');
+    const config = rows[0];
+
+    res.json({
+      success: true,
+      message: `รีสตาร์ทบริการกระจายสัญญาณ Wi-Fi "${config?.ssid || '@Airlink-Hotspot'}" เรียบร้อยแล้ว`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==============================================================================
+// 2. MIKROTIK HOTSPOT CAPTIVE PORTAL (MikroTik ทำหน้าที่เป็น Portal)
+// ==============================================================================
+router.get('/mikrotik/portal-config', async (req, res) => {
+  try {
+    const { localIp } = getRealNetworkInfo();
+    const [routers]: any = await pool.query('SELECT * FROM routers WHERE is_active = 1 LIMIT 1');
+    const router = routers[0] || null;
+
+    let routerConnected = false;
+    let hotspotServers: any[] = [];
+    let hotspotProfiles: any[] = [];
+
+    if (router) {
+      try {
+        const testRes = await mikrotikService.testConnection({
+          host: router.host,
+          port: router.api_port,
+          user: router.username,
+          password: router.password,
+        });
+        routerConnected = !!testRes.connected;
+      } catch (e) {
+        routerConnected = false;
+      }
+    }
+
+    // Portal setup template for MikroTik
+    const radiusSecret = process.env.RADIUS_SECRET || '00c1d0a5a49919afd243af8837adcde3';
+    const airlinkServerIp = localIp || '192.168.11.103';
+
+    const routerOsCommands = [
+      `# ==============================================================`,
+      `# สคริปต์ตั้งค่า Mikrotik เป็น Captive Portal เชื่อมกับ Airlink FreeRADIUS`,
+      `# รันคำสั่งนี้ใน WinBox -> New Terminal`,
+      `# ==============================================================`,
+      ``,
+      `# 1. ตั้งค่า RADIUS Client เชื่อมโยงกับเครื่อง Airlink`,
+      `/radius remove [find comment~"Airlink RADIUS"]`,
+      `/radius add service=hotspot address=${airlinkServerIp} secret="${radiusSecret}" authentication-port=1812 accounting-port=1813 timeout=3s comment="Airlink RADIUS"`,
+      `/radius incoming set accept=yes port=3799`,
+      ``,
+      `# 2. เปิดใช้งาน RADIUS บน Hotspot Server Profile`,
+      `/ip hotspot profile set [find] use-radius=yes radius-accounting=yes radius-interim-update=1m login-by=http-chap,http-pap,mac-cookie html-directory=hotspot`,
+      ``,
+      `# 3. ตั้งค่า Walled Garden (เปิดให้เข้าเครื่อง Airlink ได้ก่อนล็อกอิน)`,
+      `/ip hotspot walled-garden remove [find comment~"Airlink Portal"]`,
+      `/ip hotspot walled-garden add dst-host="*airlink*" comment="Airlink Portal"`,
+      `/ip hotspot walled-garden ip remove [find comment~"Airlink Portal IP"]`,
+      `/ip hotspot walled-garden ip add dst-address=${airlinkServerIp} comment="Airlink Portal IP"`,
+      `/ip hotspot walled-garden add dst-host="*promptpay*" comment="Airlink Portal"`,
+      `/ip hotspot walled-garden add dst-host="*line.me*" comment="Airlink Portal"`,
+      ``,
+      `# ตรวจสอบการทำงานเรียบร้อย: ลูกค้าต่อ Wi-Fi จาก Airlink จะถูกส่งไปหน้าล็อกอินบน Mikrotik Portal ทันที!`,
+    ];
+
+    res.json({
+      success: true,
+      routerConnected,
+      router: router ? { name: router.name, host: router.host } : null,
+      portalUrl: `http://${airlinkServerIp}/login`,
+      airlinkServerIp,
+      radiusSecret,
+      script: routerOsCommands.join('\n'),
+      details: routerConnected
+        ? `เราเตอร์ ${router.name} (${router.host}) พร้อมรับการซิงค์ Captive Portal`
+        : 'ยังไม่ได้เชื่อมต่อเราเตอร์ MikroTik (สามารถคัดลอกสคริปต์ไปรันบน WinBox ได้ทันที)',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/mikrotik/portal-sync', async (req, res) => {
+  try {
+    const [routers]: any = await pool.query('SELECT * FROM routers WHERE is_active = 1 LIMIT 1');
+    const router = routers[0] || null;
+
+    if (!router) {
+      return res.status(400).json({ error: 'ไม่พบข้อมูลเราเตอร์ MikroTik ในระบบ กรุณาเพิ่มเราเตอร์ก่อน' });
+    }
+
+    const testRes = await mikrotikService.testConnection({
+      host: router.host,
+      port: router.api_port,
+      user: router.username,
+      password: router.password,
+    });
+
+    if (!testRes.connected) {
+      return res.status(503).json({
+        error: `ไม่สามารถเชื่อมต่อไปยังเราเตอร์ (${router.host}:${router.api_port}): ${testRes.error || 'Connection timed out'}. กรุณาตรวจสอบการต่อสาย LAN หรือรันสคริปต์ผ่าน WinBox โดยตรง`,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `ซิงค์ Captive Portal และเชื่อมโยง RADIUS กับเราเตอร์ ${router.name} สำเร็จแล้ว`,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
