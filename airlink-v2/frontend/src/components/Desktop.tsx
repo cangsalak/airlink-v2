@@ -22,7 +22,13 @@ import {
   X,
   Image,
   RefreshCw,
-  LucideIcon
+  LucideIcon,
+  EyeOff,
+  Eye,
+  SlidersHorizontal,
+  Check,
+  RotateCcw,
+  Minimize2
 } from 'lucide-react';
 import WindowManager from './WindowManager';
 import ClassicDashboard from './ClassicDashboard';
@@ -88,8 +94,27 @@ export default function Desktop({
   const [wallpaper, setWallpaper] = useState<string>('vorssaint-neon');
   const [customWallpaper, setCustomWallpaper] = useState<string>('');
   
+  // Desktop Icon Management Config
+  const [iconConfig, setIconConfig] = useState<{
+    hiddenIcons: string[];
+    iconSize: 'sm' | 'md' | 'lg';
+    position: 'right' | 'left';
+    showLabels: boolean;
+  }>({
+    hiddenIcons: [],
+    iconSize: 'md',
+    position: 'right',
+    showLabels: true,
+  });
+
+  const [isIconManagerOpen, setIsIconManagerOpen] = useState(false);
+
   // Desktop Right-Click Context Menu
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ 
+    x: number; 
+    y: number; 
+    targetApp?: DesktopAppDef | null;
+  } | null>(null);
 
   const desktopApps: DesktopAppDef[] = [
     {
@@ -304,6 +329,35 @@ export default function Desktop({
 
   const initialOpenedRef = useRef(false);
 
+  const updateIconConfig = (partial: Partial<typeof iconConfig>) => {
+    setIconConfig((prev) => {
+      const updated = { ...prev, ...partial };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('airlink_desktop_icons_config', JSON.stringify(updated));
+      }
+      return updated;
+    });
+  };
+
+  const toggleIconVisibility = (appId: string) => {
+    setIconConfig((prev) => {
+      const isHidden = prev.hiddenIcons.includes(appId);
+      const hiddenIcons = isHidden
+        ? prev.hiddenIcons.filter((id) => id !== appId)
+        : [...prev.hiddenIcons, appId];
+      const updated = { ...prev, hiddenIcons };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('airlink_desktop_icons_config', JSON.stringify(updated));
+      }
+      return updated;
+    });
+  };
+
+  const hideIcon = (appId: string) => {
+    toggleIconVisibility(appId);
+    notifySuccess('ซ่อนไอคอนจากหน้าเดสก์ท็อปแล้ว (เปิดคืนได้ในตัวจัดการไอคอน)');
+  };
+
   const handleOpenApp = (app: DesktopAppDef) => {
     if (app.external && app.href) {
       window.open(app.href, '_blank');
@@ -341,6 +395,14 @@ export default function Desktop({
     const savedCustom = localStorage.getItem('airlink_wallpaper_custom');
     if (savedWp) setWallpaper(savedWp);
     if (savedCustom) setCustomWallpaper(savedCustom);
+
+    // Load persisted desktop icon config
+    const savedIconConfig = localStorage.getItem('airlink_desktop_icons_config');
+    if (savedIconConfig) {
+      try {
+        setIconConfig((prev) => ({ ...prev, ...JSON.parse(savedIconConfig) }));
+      } catch (err) {}
+    }
 
     // Auto-open requested app from URL query param ONLY ONCE on mount
     if (!initialOpenedRef.current) {
@@ -384,16 +446,29 @@ export default function Desktop({
       }
     };
 
+    const handleOpenIconManager = () => setIsIconManagerOpen(true);
+
+    const handlePointerDown = (e: MouseEvent) => {
+      if (e.button === 2) return; // Ignore right-click
+      const target = e.target as HTMLElement;
+      if (target.closest('.desktop-context-menu') || target.closest('.icon-manager-modal')) return;
+      setContextMenu(null);
+    };
+
     window.addEventListener('open-desktop-app', handleCustomOpen);
+    window.addEventListener('open-icon-manager', handleOpenIconManager);
     window.addEventListener('minimize-all-windows', handleMinimizeAll);
     window.addEventListener('close-all-windows', handleCloseAll);
     window.addEventListener('change-wallpaper', handleWpChange);
+    window.addEventListener('pointerdown', handlePointerDown);
 
     return () => {
       window.removeEventListener('open-desktop-app', handleCustomOpen);
+      window.removeEventListener('open-icon-manager', handleOpenIconManager);
       window.removeEventListener('minimize-all-windows', handleMinimizeAll);
       window.removeEventListener('close-all-windows', handleCloseAll);
       window.removeEventListener('change-wallpaper', handleWpChange);
+      window.removeEventListener('pointerdown', handlePointerDown);
     };
   }, []);
 
@@ -417,13 +492,16 @@ export default function Desktop({
     <div 
       className="relative w-full h-[calc(100vh-32px)] overflow-hidden select-none"
       onContextMenu={(e) => {
-        // Only open desktop context menu if clicking the desktop canvas directly
         const target = e.target as HTMLElement;
-        if (target.closest('.fixed') || target.closest('[style*="z-index"]')) return;
+        // Don't intercept right click inside window body content (forms, tables, inputs)
+        if (target.closest('.window-body-content')) return;
         e.preventDefault();
-        setContextMenu({ x: Math.min(e.clientX, window.innerWidth - 220), y: Math.min(e.clientY, window.innerHeight - 180) });
+        setContextMenu({ 
+          x: Math.min(e.clientX, window.innerWidth - 270), 
+          y: Math.min(e.clientY, window.innerHeight - 360),
+          targetApp: null,
+        });
       }}
-      onClick={() => setContextMenu(null)}
     >
       {/* 1. Dynamic Wallpaper Renderer */}
       {(() => {
@@ -500,35 +578,78 @@ export default function Desktop({
       })()}
 
 
-      {/* 2. Desktop Icons on the RIGHT SIDE (Exact macOS / vorssaint.com layout) */}
-      <div className="absolute top-6 right-6 z-20 grid grid-flow-col grid-rows-7 gap-x-6 gap-y-3.5 max-h-[calc(100vh-140px)]">
-        {rightDesktopApps.map((app) => {
-          const Icon = app.icon;
-          const isRunning = openWindows.some((w) => w.id === app.id);
-          return (
-            <div
-              key={app.id}
-              onClick={() => handleOpenApp(app)}
-              className="group flex flex-col items-center cursor-pointer select-none text-center relative transition-transform duration-150 active:scale-95 w-20"
-            >
-              {/* Frosted Glass Icon Tile */}
-              <div className="w-14 h-14 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 shadow-xl flex items-center justify-center text-white transition-all duration-200 group-hover:scale-105 group-hover:border-white/40">
-                <Icon className="w-7 h-7 drop-shadow-md text-white/95" />
-              </div>
+      {/* 2. Desktop Icons (Configurable: Size, Position, Visibility) */}
+      {(() => {
+        const visibleDesktopApps = rightDesktopApps.filter(
+          (app) => !iconConfig.hiddenIcons.includes(app.id)
+        );
+        const positionClass = iconConfig.position === 'left' ? 'top-6 left-6' : 'top-6 right-6';
+        const sizeConfig = {
+          sm: {
+            tile: 'w-11 h-11 rounded-xl',
+            icon: 'w-5 h-5',
+            colWidth: 'w-16',
+            fontSize: 'text-[10px]',
+            gap: 'gap-x-4 gap-y-2.5',
+          },
+          md: {
+            tile: 'w-14 h-14 rounded-2xl',
+            icon: 'w-7 h-7',
+            colWidth: 'w-20',
+            fontSize: 'text-[11px]',
+            gap: 'gap-x-6 gap-y-3.5',
+          },
+          lg: {
+            tile: 'w-16 h-16 rounded-2xl',
+            icon: 'w-8 h-8',
+            colWidth: 'w-24',
+            fontSize: 'text-xs',
+            gap: 'gap-x-7 gap-y-4',
+          },
+        }[iconConfig.iconSize];
 
-              {/* Icon Label Underneath */}
-              <span className="mt-1.5 text-[11px] font-medium text-white/95 max-w-[80px] leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] group-hover:text-white transition-colors">
-                {app.name}
-              </span>
+        return (
+          <div className={`absolute ${positionClass} z-20 grid grid-flow-col grid-rows-7 ${sizeConfig.gap} max-h-[calc(100vh-140px)]`}>
+            {visibleDesktopApps.map((app) => {
+              const Icon = app.icon;
+              const isRunning = openWindows.some((w) => w.id === app.id);
+              return (
+                <div
+                  key={app.id}
+                  onClick={() => handleOpenApp(app)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setContextMenu({
+                      x: Math.min(e.clientX, window.innerWidth - 270),
+                      y: Math.min(e.clientY, window.innerHeight - 300),
+                      targetApp: app,
+                    });
+                  }}
+                  className={`group flex flex-col items-center cursor-pointer select-none text-center relative transition-transform duration-150 active:scale-95 ${sizeConfig.colWidth}`}
+                >
+                  {/* Frosted Glass Icon Tile */}
+                  <div className={`${sizeConfig.tile} bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 shadow-xl flex items-center justify-center text-white transition-all duration-200 group-hover:scale-105 group-hover:border-white/40`}>
+                    <Icon className={`${sizeConfig.icon} drop-shadow-md text-white/95`} />
+                  </div>
 
-              {/* Running Indicator Dot */}
-              {isRunning && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-black/40 shadow-sm animate-pulse" />
-              )}
-            </div>
-          );
-        })}
-      </div>
+                  {/* Icon Label Underneath */}
+                  {iconConfig.showLabels && (
+                    <span className={`mt-1.5 ${sizeConfig.fontSize} font-medium text-white/95 max-w-[85px] leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] group-hover:text-white transition-colors truncate`}>
+                      {app.name}
+                    </span>
+                  )}
+
+                  {/* Running Indicator Dot */}
+                  {isRunning && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-black/40 shadow-sm animate-pulse" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* 3. Render Active Desktop Windows with macOS Traffic Lights */}
       {openWindows.map((win, idx) => (
@@ -547,48 +668,314 @@ export default function Desktop({
       {contextMenu && (
         <div
           style={{ top: contextMenu.y, left: contextMenu.x }}
-          className="fixed z-50 w-56 bg-slate-900/90 backdrop-blur-2xl border border-white/20 rounded-xl shadow-2xl py-1.5 text-xs text-slate-200 animate-in fade-in zoom-in-95 duration-100"
+          className="desktop-context-menu fixed z-50 w-64 bg-slate-900/95 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-2xl py-2 text-xs text-slate-200 animate-in fade-in zoom-in-95 duration-100"
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={() => {
-              setContextMenu(null);
-              const settingsApp = desktopApps.find(a => a.id === 'settings');
-              if (settingsApp) {
-                handleOpenApp(settingsApp);
-                window.dispatchEvent(new CustomEvent('select-settings-tab', { detail: { tab: 'wallpaper' } }));
-              }
-            }}
-            className="w-full text-left px-3.5 py-2 hover:bg-sky-600 hover:text-white transition flex items-center space-x-2"
-          >
-            <Image className="w-4 h-4 text-sky-400" />
-            <span>เปลี่ยนภาพพื้นหลัง (Change Wallpaper...)</span>
-          </button>
+          {contextMenu.targetApp ? (
+            /* Icon-specific Context Menu */
+            <>
+              <div className="px-3.5 py-1.5 border-b border-white/10 mb-1 flex items-center space-x-2">
+                <span className="font-semibold text-white truncate">{contextMenu.targetApp.name}</span>
+                <span className="text-[10px] text-slate-400">({contextMenu.targetApp.subname})</span>
+              </div>
+              <button
+                onClick={() => {
+                  handleOpenApp(contextMenu.targetApp!);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3.5 py-2 hover:bg-sky-600 hover:text-white transition flex items-center space-x-2.5 cursor-pointer"
+              >
+                <contextMenu.targetApp.icon className="w-4 h-4 text-sky-400" />
+                <span>เปิดแอปพลิเคชัน (Open)</span>
+              </button>
+              <button
+                onClick={() => {
+                  hideIcon(contextMenu.targetApp!.id);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3.5 py-2 hover:bg-rose-600 hover:text-white transition flex items-center space-x-2.5 text-rose-300 cursor-pointer"
+              >
+                <EyeOff className="w-4 h-4" />
+                <span>ซ่อนไอคอนนี้จากเดสก์ท็อป</span>
+              </button>
+              <div className="h-[1px] bg-white/10 my-1" />
+              <button
+                onClick={() => {
+                  setIsIconManagerOpen(true);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3.5 py-2 hover:bg-sky-600 hover:text-white transition flex items-center space-x-2.5 cursor-pointer"
+              >
+                <SlidersHorizontal className="w-4 h-4 text-amber-400" />
+                <span>จัดการไอคอนทั้งหมด...</span>
+              </button>
+            </>
+          ) : (
+            /* General Desktop Canvas Context Menu */
+            <>
+              <button
+                onClick={() => {
+                  setIsIconManagerOpen(true);
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3.5 py-2 hover:bg-sky-600 hover:text-white transition flex items-center space-x-2.5 cursor-pointer font-medium text-white"
+              >
+                <SlidersHorizontal className="w-4 h-4 text-sky-400" />
+                <span>จัดการไอคอนเดสก์ท็อป... (Icon Manager)</span>
+              </button>
 
-          <button
-            onClick={() => {
-              setContextMenu(null);
-              const settingsApp = desktopApps.find(a => a.id === 'settings');
-              if (settingsApp) handleOpenApp(settingsApp);
-            }}
-            className="w-full text-left px-3.5 py-2 hover:bg-sky-600 hover:text-white transition flex items-center space-x-2"
-          >
-            <Settings className="w-4 h-4 text-slate-400" />
-            <span>การตั้งค่าระบบ (System Preferences...)</span>
-          </button>
+              <div className="h-[1px] bg-white/10 my-1" />
 
-          <div className="h-[1px] bg-white/10 my-1" />
+              {/* Icon Size Toggle */}
+              <div className="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                ขนาดไอคอน (Icon Size)
+              </div>
+              <div className="grid grid-cols-3 gap-1 px-3 py-1">
+                {(['sm', 'md', 'lg'] as const).map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => updateIconConfig({ iconSize: size })}
+                    className={`py-1 rounded-lg text-center transition cursor-pointer text-[11px] ${
+                      iconConfig.iconSize === size
+                        ? 'bg-sky-600 text-white font-semibold'
+                        : 'bg-white/5 hover:bg-white/15 text-slate-300'
+                    }`}
+                  >
+                    {size === 'sm' ? 'เล็ก' : size === 'md' ? 'กลาง' : 'ใหญ่'}
+                  </button>
+                ))}
+              </div>
 
-          <button
-            onClick={() => {
-              setContextMenu(null);
-              notifySuccess('รีเฟรชหน้าจอเดสก์ท็อปแล้ว');
-            }}
-            className="w-full text-left px-3.5 py-2 hover:bg-sky-600 hover:text-white transition flex items-center space-x-2"
-          >
-            <RefreshCw className="w-4 h-4 text-emerald-400" />
-            <span>รีเฟรชเดสก์ท็อป (Refresh)</span>
-          </button>
+              {/* Icon Position Toggle */}
+              <div className="px-3.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-1">
+                ตำแหน่งไอคอน (Position)
+              </div>
+              <div className="grid grid-cols-2 gap-1 px-3 py-1">
+                {(['right', 'left'] as const).map((pos) => (
+                  <button
+                    key={pos}
+                    onClick={() => updateIconConfig({ position: pos })}
+                    className={`py-1 rounded-lg text-center transition cursor-pointer text-[11px] ${
+                      iconConfig.position === pos
+                        ? 'bg-sky-600 text-white font-semibold'
+                        : 'bg-white/5 hover:bg-white/15 text-slate-300'
+                    }`}
+                  >
+                    {pos === 'right' ? 'ชิดขวา (macOS)' : 'ชิดซ้าย (Classic)'}
+                  </button>
+                ))}
+              </div>
+
+              <div className="h-[1px] bg-white/10 my-1" />
+
+              <button
+                onClick={() => {
+                  setContextMenu(null);
+                  const settingsApp = desktopApps.find(a => a.id === 'settings');
+                  if (settingsApp) {
+                    handleOpenApp(settingsApp);
+                    window.dispatchEvent(new CustomEvent('select-settings-tab', { detail: { tab: 'wallpaper' } }));
+                  }
+                }}
+                className="w-full text-left px-3.5 py-2 hover:bg-sky-600 hover:text-white transition flex items-center space-x-2.5 cursor-pointer"
+              >
+                <Image className="w-4 h-4 text-pink-400" />
+                <span>เปลี่ยนภาพพื้นหลัง (Change Wallpaper...)</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setContextMenu(null);
+                  const settingsApp = desktopApps.find(a => a.id === 'settings');
+                  if (settingsApp) handleOpenApp(settingsApp);
+                }}
+                className="w-full text-left px-3.5 py-2 hover:bg-sky-600 hover:text-white transition flex items-center space-x-2.5 cursor-pointer"
+              >
+                <Settings className="w-4 h-4 text-slate-400" />
+                <span>การตั้งค่าระบบ (System Settings...)</span>
+              </button>
+
+              <div className="h-[1px] bg-white/10 my-1" />
+
+              <button
+                onClick={() => {
+                  handleMinimizeAll();
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3.5 py-1.5 hover:bg-sky-600 hover:text-white transition flex items-center space-x-2.5 text-slate-300 cursor-pointer"
+              >
+                <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
+                <span>ย่อหน้าต่างทั้งหมด (Minimize All)</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  handleCloseAll();
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-3.5 py-1.5 hover:bg-rose-600 hover:text-white transition flex items-center space-x-2.5 text-rose-300 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>ปิดหน้าต่างทั้งหมด (Close All)</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setContextMenu(null);
+                  notifySuccess('รีเฟรชเดสก์ท็อปเรียบร้อยแล้ว');
+                }}
+                className="w-full text-left px-3.5 py-1.5 hover:bg-sky-600 hover:text-white transition flex items-center space-x-2.5 text-slate-300 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                <span>รีเฟรชหน้าจอ (Refresh)</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 5. Desktop Icon Manager Modal */}
+      {isIconManagerOpen && (
+        <div className="icon-manager-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="w-full max-w-2xl bg-slate-900/95 border border-white/20 rounded-3xl p-6 sm:p-7 shadow-2xl text-white flex flex-col max-h-[85vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 rounded-2xl bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                  <SlidersHorizontal className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">จัดการไอคอนบนเดสก์ท็อป (Desktop Icon Manager)</h3>
+                  <p className="text-xs text-slate-400">เลือกไอคอนที่ต้องการแสดง ปรับขนาด และตำแหน่งบนหน้าจอ</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsIconManagerOpen(false)}
+                className="p-2 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Controls Toolbar */}
+            <div className="py-4 border-b border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center space-x-2">
+                <span className="text-slate-400">ขนาดไอคอน:</span>
+                {(['sm', 'md', 'lg'] as const).map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => updateIconConfig({ iconSize: size })}
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                      iconConfig.iconSize === size
+                        ? 'bg-sky-600 text-white font-medium shadow-sm'
+                        : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                    }`}
+                  >
+                    {size === 'sm' ? 'เล็ก (44px)' : size === 'md' ? 'กลาง (56px)' : 'ใหญ่ (68px)'}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <span className="text-slate-400">ตำแหน่ง:</span>
+                {(['right', 'left'] as const).map((pos) => (
+                  <button
+                    key={pos}
+                    onClick={() => updateIconConfig({ position: pos })}
+                    className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                      iconConfig.position === pos
+                        ? 'bg-sky-600 text-white font-medium shadow-sm'
+                        : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                    }`}
+                  >
+                    {pos === 'right' ? 'ชิดขวา (macOS)' : 'ชิดซ้าย (Classic)'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions Bar */}
+            <div className="py-2.5 flex items-center justify-between text-xs text-slate-400">
+              <span>เลือกไอคอนที่ต้องการให้ปรากฏบนเดสก์ท็อป ({desktopApps.length - iconConfig.hiddenIcons.length}/{desktopApps.length} รายการ):</span>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => updateIconConfig({ hiddenIcons: [] })}
+                  className="text-sky-400 hover:text-sky-300 transition underline cursor-pointer"
+                >
+                  แสดงทั้งหมด
+                </button>
+                <span>•</span>
+                <button
+                  onClick={() => updateIconConfig({ hiddenIcons: desktopApps.map(a => a.id) })}
+                  className="text-rose-400 hover:text-rose-300 transition underline cursor-pointer"
+                >
+                  ซ่อนทั้งหมด
+                </button>
+              </div>
+            </div>
+
+            {/* App Icons Checklist Grid */}
+            <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 gap-2.5 py-2">
+              {desktopApps.map((app) => {
+                const Icon = app.icon;
+                const isVisible = !iconConfig.hiddenIcons.includes(app.id);
+                return (
+                  <div
+                    key={app.id}
+                    onClick={() => toggleIconVisibility(app.id)}
+                    className={`flex items-center justify-between p-3 rounded-2xl border transition cursor-pointer select-none ${
+                      isVisible
+                        ? 'bg-white/10 border-sky-500/40 text-white shadow-sm'
+                        : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${app.color} p-2 text-white flex items-center justify-center shadow`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold">{app.name}</div>
+                        <div className="text-[11px] text-slate-400">{app.subname}</div>
+                      </div>
+                    </div>
+
+                    {/* Checkbox Switch */}
+                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition border ${
+                      isVisible
+                        ? 'bg-sky-500 border-sky-400 text-white'
+                        : 'bg-white/10 border-white/20 text-transparent'
+                    }`}>
+                      <Check className="w-4 h-4 stroke-[3]" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-4 border-t border-white/10 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  updateIconConfig({ hiddenIcons: [], iconSize: 'md', position: 'right', showLabels: true });
+                  notifySuccess('รีเซ็ตการตั้งค่าไอคอนเริ่มต้นแล้ว');
+                }}
+                className="text-xs text-slate-400 hover:text-white transition flex items-center space-x-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>รีเซ็ตเป็นค่าเริ่มต้น</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsIconManagerOpen(false);
+                  notifySuccess('บันทึกการตั้งค่าไอคอนเรียบร้อยแล้ว');
+                }}
+                className="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-medium text-xs shadow-lg transition cursor-pointer"
+              >
+                เสร็จสิ้น (Done)
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

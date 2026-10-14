@@ -104,7 +104,7 @@ export default function WindowManager({
       </div>
 
       {/* Window Body Content */}
-      <div className="flex-1 w-full h-full overflow-y-auto bg-[#f0f3f8] text-slate-800">
+      <div className="flex-1 w-full h-full overflow-y-auto bg-[#f0f3f8] text-slate-800 window-body-content">
         {app.component}
       </div>
     </div>

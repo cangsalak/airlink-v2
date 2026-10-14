@@ -220,9 +220,31 @@ export default function TopNavbar({
                       </button>
                     </>
                   )}
-                  {(item.id === 'edit' || item.id === 'view' || item.id === 'go' || item.id === 'help') && (
+                  {item.id === 'view' && (
+                    <>
+                      <button 
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('open-icon-manager'));
+                          setActiveMenu(null);
+                        }} 
+                        className="w-full text-left px-4 py-1.5 hover:bg-sky-600 hover:text-white transition"
+                      >
+                        จัดการไอคอนเดสก์ท็อป... (Icon Manager)
+                      </button>
+                      <button 
+                        onClick={() => {
+                          openApp('settings');
+                          window.dispatchEvent(new CustomEvent('select-settings-tab', { detail: { tab: 'wallpaper' } }));
+                        }} 
+                        className="w-full text-left px-4 py-1.5 hover:bg-sky-600 hover:text-white transition"
+                      >
+                        เปลี่ยนภาพพื้นหลัง (Wallpapers)
+                      </button>
+                    </>
+                  )}
+                  {(item.id === 'edit' || item.id === 'go' || item.id === 'help') && (
                     <div className="px-4 py-1.5 text-slate-400 text-[11px]">
-                      Airlink macOS MT 2.0 พร้อมใช้งาน
+                      Airlink MT 2.0 พร้อมใช้งาน
                     </div>
                   )}
                 </div>
