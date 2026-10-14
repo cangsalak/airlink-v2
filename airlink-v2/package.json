@@ -1,0 +1,23 @@
+{
+  "name": "airlink-v2-monorepo",
+  "version": "2.0.0",
+  "private": true,
+  "packageManager": "npm@11.19.0",
+  "description": "Airlink Mikrotik V2 - Turborepo Monorepo (Frontend, Backend, Services)",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "services"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "lint": "turbo run lint",
+    "services:up": "docker compose up -d db radius",
+    "services:down": "docker compose down"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.8"
+  }
+}

@@ -9,7 +9,8 @@ import {
   Layers,
   Router,
   FileText,
-  Wifi
+  Wifi,
+  ExternalLink
 } from 'lucide-react';
 
 const navItems = [
@@ -19,10 +20,16 @@ const navItems = [
   { name: 'แพ็กเกจ (Profiles)', href: '/profiles', icon: Layers },
   { name: 'Mikrotik Monitor', href: '/mikrotik', icon: Router },
   { name: 'ประวัติการใช้งาน (Logs)', href: '/logs', icon: FileText },
+  { name: 'หน้าต่อเน็ตลูกค้า (Portal)', href: '/login', icon: ExternalLink },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+
+  // Do not show admin sidebar on captive portal customer login page
+  if (pathname === '/login') {
+    return null;
+  }
 
   return (
     <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col no-print shrink-0">

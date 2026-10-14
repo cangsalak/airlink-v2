@@ -1,0 +1,12 @@
+{
+  "name": "airlink-services",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Airlink V2 Database & FreeRADIUS Services Runner",
+  "scripts": {
+    "dev": "node runner.js",
+    "build": "node -e \"console.log('[Services] Ready')\"",
+    "start": "node runner.js"
+  }
+}
