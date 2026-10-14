@@ -90,9 +90,17 @@ export default function DashboardPage() {
     { id: 'captive_portal', name: 'CAPTIVE PORTAL', detail: 'พบบริการ hotspot airlink/login.html' }
   ];
 
-  // Render Synology Desktop Mode if selected
+  // Render Desktop Mode if selected
   if (viewMode === 'desktop') {
-    return <SynologyDesktop systemOverview={systemOverview} />;
+    return (
+      <SynologyDesktop 
+        systemOverview={systemOverview} 
+        onOpenClassicDashboard={() => {
+          setViewMode('classic');
+          localStorage.setItem('airlink_view_mode', 'classic');
+        }}
+      />
+    );
   }
 
   // Otherwise Render Classic Airlink UI (Exact match to User's Screenshot)

@@ -21,140 +21,237 @@ import {
   ShieldCheck,
   CheckCircle2,
   ChevronRight,
-  X
+  X,
+  LucideIcon
 } from 'lucide-react';
+import WindowManager from './WindowManager';
+
+// Import app sub-views
+import VouchersPage from '@/app/vouchers/page';
+import ProfilesPage from '@/app/profiles/page';
+import MikrotikPage from '@/app/mikrotik/page';
+import OnlineUsersPage from '@/app/online/page';
+import BandwidthPage from '@/app/bandwidth/page';
+import IncomePage from '@/app/income/page';
+import DevicesPage from '@/app/devices/page';
+import NetworkPage from '@/app/network/page';
+import QosPage from '@/app/qos/page';
+import PaymentsPage from '@/app/payments/page';
+import SettingsPage from '@/app/settings/page';
+import LogsPage from '@/app/logs/page';
+
+interface DesktopAppDef {
+  id: string;
+  name: string;
+  subname: string;
+  color: string;
+  icon: LucideIcon;
+  href?: string;
+  component?: React.ReactNode;
+  external?: boolean;
+}
 
 interface SynologyDesktopProps {
   systemOverview: any;
-  onSelectApp?: (href: string) => void;
+  onOpenClassicDashboard?: () => void;
 }
 
-export const synologyApps = [
-  {
-    id: 'dashboard',
-    name: 'แดชบอร์ด',
-    subname: 'Dashboard',
-    href: '/',
-    color: 'from-sky-500 to-blue-600',
-    icon: LayoutDashboard,
-  },
-  {
-    id: 'vouchers',
-    name: 'จัดการผู้ใช้/คูปอง',
-    subname: 'Voucher Manager',
-    href: '/vouchers',
-    color: 'from-amber-500 to-orange-600',
-    icon: Ticket,
-  },
-  {
-    id: 'print',
-    name: 'พิมพ์บัตรคูปอง',
-    subname: 'Batch Print',
-    href: '/vouchers/print',
-    color: 'from-indigo-500 to-purple-600',
-    icon: Printer,
-  },
-  {
-    id: 'profiles',
-    name: 'จัดการกลุ่ม/แพ็กเกจ',
-    subname: 'Billing Profiles',
-    href: '/profiles',
-    color: 'from-emerald-500 to-teal-600',
-    icon: Users,
-  },
-  {
-    id: 'mikrotik',
-    name: 'เราเตอร์ / Hotspot',
-    subname: 'Mikrotik Router',
-    href: '/mikrotik',
-    color: 'from-rose-500 to-red-600',
-    icon: Router,
-  },
-  {
-    id: 'online',
-    name: 'ผู้ใช้ออนไลน์',
-    subname: 'Active Sessions',
-    href: '/online',
-    color: 'from-cyan-500 to-sky-600',
-    icon: Wifi,
-  },
-  {
-    id: 'bandwidth',
-    name: 'สถิติแบนด์วิธท์',
-    subname: 'Bandwidth Monitor',
-    href: '/bandwidth',
-    color: 'from-violet-500 to-purple-700',
-    icon: Activity,
-  },
-  {
-    id: 'income',
-    name: 'สถิติรายได้',
-    subname: 'Revenue & Sales',
-    href: '/income',
-    color: 'from-emerald-600 to-green-700',
-    icon: DollarSign,
-  },
-  {
-    id: 'devices',
-    name: 'อุปกรณ์ที่เชื่อมต่อ',
-    subname: 'Connected Devices',
-    href: '/devices',
-    color: 'from-blue-600 to-indigo-700',
-    icon: Laptop,
-  },
-  {
-    id: 'network',
-    name: 'ตั้งค่า Network',
-    subname: 'Network Config',
-    href: '/network',
-    color: 'from-slate-600 to-slate-800',
-    icon: Network,
-  },
-  {
-    id: 'qos',
-    name: 'QoS Control',
-    subname: 'Traffic Shaping',
-    href: '/qos',
-    color: 'from-amber-600 to-yellow-600',
-    icon: Gauge,
-  },
-  {
-    id: 'payments',
-    name: 'รับชำระเงิน',
-    subname: 'Payment Gateways',
-    href: '/payments',
-    color: 'from-teal-500 to-emerald-600',
-    icon: CreditCard,
-  },
-  {
-    id: 'logs',
-    name: 'ประวัติการใช้งาน',
-    subname: 'RADIUS Logs',
-    href: '/logs',
-    color: 'from-zinc-600 to-zinc-800',
-    icon: FileText,
-  },
-  {
-    id: 'settings',
-    name: 'ตั้งค่าระบบ',
-    subname: 'Control Panel',
-    href: '/settings',
-    color: 'from-gray-600 to-slate-800',
-    icon: Settings,
-  },
-  {
-    id: 'login',
-    name: 'หน้าล็อกอินลูกค้า',
-    subname: 'Captive Portal',
-    href: '/login',
-    color: 'from-pink-500 to-rose-600',
-    icon: LogIn,
-    external: true,
-  },
-];
-
-export default function SynologyDesktop({ systemOverview }: SynologyDesktopProps) {
+export default function SynologyDesktop({
+  systemOverview,
+  onOpenClassicDashboard
+}: SynologyDesktopProps) {
   const [showWidget, setShowWidget] = useState(true);
+  
+  // Window states: list of currently opened apps
+  const [openWindows, setOpenWindows] = useState<{
+    id: string;
+    title: string;
+    icon: LucideIcon;
+    component: React.ReactNode;
+    isMinimized: boolean;
+  }[]>([]);
+  
+  const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
+
+  const desktopApps: DesktopAppDef[] = [
+    {
+      id: 'dashboard',
+      name: 'แดชบอร์ดระบบ',
+      subname: 'Classic View',
+      color: 'from-sky-500 to-blue-600',
+      icon: LayoutDashboard,
+    },
+    {
+      id: 'vouchers',
+      name: 'จัดการผู้ใช้/คูปอง',
+      subname: 'Voucher Manager',
+      color: 'from-amber-500 to-orange-600',
+      icon: Ticket,
+      component: <VouchersPage />,
+    },
+    {
+      id: 'profiles',
+      name: 'จัดการกลุ่ม/แพ็กเกจ',
+      subname: 'Billing Profiles',
+      color: 'from-emerald-500 to-teal-600',
+      icon: Users,
+      component: <ProfilesPage />,
+    },
+    {
+      id: 'mikrotik',
+      name: 'เราเตอร์ / Hotspot',
+      subname: 'Mikrotik Router',
+      color: 'from-rose-500 to-red-600',
+      icon: Router,
+      component: <MikrotikPage />,
+    },
+    {
+      id: 'online',
+      name: 'ผู้ใช้ออนไลน์',
+      subname: 'Active Sessions',
+      color: 'from-cyan-500 to-sky-600',
+      icon: Wifi,
+      component: <OnlineUsersPage />,
+    },
+    {
+      id: 'bandwidth',
+      name: 'สถิติแบนด์วิธท์',
+      subname: 'Bandwidth Monitor',
+      color: 'from-violet-500 to-purple-700',
+      icon: Activity,
+      component: <BandwidthPage />,
+    },
+    {
+      id: 'income',
+      name: 'สถิติรายได้',
+      subname: 'Revenue & Sales',
+      color: 'from-emerald-600 to-green-700',
+      icon: DollarSign,
+      component: <IncomePage />,
+    },
+    {
+      id: 'devices',
+      name: 'อุปกรณ์ที่เชื่อมต่อ',
+      subname: 'Connected Devices',
+      color: 'from-blue-600 to-indigo-700',
+      icon: Laptop,
+      component: <DevicesPage />,
+    },
+    {
+      id: 'network',
+      name: 'ตั้งค่า Network',
+      subname: 'Network Config',
+      color: 'from-slate-600 to-slate-800',
+      icon: Network,
+      component: <NetworkPage />,
+    },
+    {
+      id: 'qos',
+      name: 'QoS Control',
+      subname: 'Traffic Shaping',
+      color: 'from-amber-600 to-yellow-600',
+      icon: Gauge,
+      component: <QosPage />,
+    },
+    {
+      id: 'payments',
+      name: 'รับชำระเงิน',
+      subname: 'Payment Gateways',
+      color: 'from-teal-500 to-emerald-600',
+      icon: CreditCard,
+      component: <PaymentsPage />,
+    },
+    {
+      id: 'logs',
+      name: 'ประวัติการใช้งาน',
+      subname: 'RADIUS Logs',
+      color: 'from-zinc-600 to-zinc-800',
+      icon: FileText,
+      component: <LogsPage />,
+    },
+    {
+      id: 'settings',
+      name: 'ตั้งค่าระบบ',
+      subname: 'Control Panel',
+      color: 'from-gray-600 to-slate-800',
+      icon: Settings,
+      component: <SettingsPage />,
+    },
+    {
+      id: 'print',
+      name: 'พิมพ์บัตรคูปอง',
+      subname: 'Batch Print',
+      color: 'from-indigo-500 to-purple-600',
+      icon: Printer,
+      href: '/vouchers/print',
+    },
+    {
+      id: 'login',
+      name: 'หน้าล็อกอินลูกค้า',
+      subname: 'Captive Portal',
+      color: 'from-pink-500 to-rose-600',
+      icon: LogIn,
+      href: '/login',
+      external: true,
+    },
+  ];
+
+  const handleOpenApp = (app: DesktopAppDef) => {
+    if (app.id === 'dashboard') {
+      if (onOpenClassicDashboard) {
+        onOpenClassicDashboard();
+      }
+      return;
+    }
+
+    if (app.external && app.href) {
+      window.open(app.href, '_blank');
+      return;
+    }
+
+    if (app.href && !app.component) {
+      window.location.href = app.href;
+      return;
+    }
+
+    // Open as Desktop Window
+    const existing = openWindows.find((w) => w.id === app.id);
+    if (existing) {
+      // Unminimize and focus
+      setOpenWindows((prev) =>
+        prev.map((w) => (w.id === app.id ? { ...w, isMinimized: false } : w))
+      );
+      setActiveWindowId(app.id);
+    } else {
+      setOpenWindows((prev) => [
+        ...prev,
+        {
+          id: app.id,
+          title: app.name,
+          icon: app.icon,
+          component: app.component,
+          isMinimized: false,
+        },
+      ]);
+      setActiveWindowId(app.id);
+    }
+  };
+
+  const handleCloseWindow = (id: string) => {
+    setOpenWindows((prev) => prev.filter((w) => w.id !== id));
+    if (activeWindowId === id) {
+      setActiveWindowId(null);
+    }
+  };
+
+  const handleMinimizeWindow = (id: string) => {
+    setOpenWindows((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, isMinimized: true } : w))
+    );
+    if (activeWindowId === id) {
+      setActiveWindowId(null);
+    }
+  };
 
   const stats = systemOverview?.stats || {
     onlineUsers: 0,
@@ -194,8 +291,8 @@ export default function SynologyDesktop({ systemOverview }: SynologyDesktopProps
   ];
 
   return (
-    <div className="relative w-full min-h-[calc(100vh-85px)] bg-gradient-to-br from-slate-900 via-sky-950 to-slate-950 p-6 flex flex-col justify-between overflow-hidden">
-      {/* Background Subtle Synology Grid Lines */}
+    <div className="relative w-full min-h-[calc(100vh-85px)] bg-gradient-to-br from-slate-900 via-sky-950 to-slate-950 p-4 sm:p-6 flex flex-col justify-between overflow-hidden select-none">
+      {/* Subtle Pattern */}
       <div 
         className="absolute inset-0 opacity-10 pointer-events-none" 
         style={{
@@ -204,46 +301,52 @@ export default function SynologyDesktop({ systemOverview }: SynologyDesktopProps
         }}
       />
 
+      {/* Main Content Area */}
       <div className="relative z-10 flex flex-col lg:flex-row gap-6 h-full items-start">
-        {/* Left / Center: Synology DSM App Icons Grid */}
-        <div className="flex-1">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-white/90">
-              <span className="font-semibold text-sm tracking-wide">หน้าจอหลัก &bull; แอร์ลิงก์ ไมโครติก</span>
-            </div>
+        {/* Left / Center: Desktop App Icons Grid */}
+        <div className="flex-1 w-full">
+          <div className="mb-4 flex items-center justify-between text-white/90">
+            <span className="font-semibold text-sm tracking-wide">
+              เดสก์ท็อปไอคอน &bull; ดับเบิลคลิกหรือคลิกเพื่อเปิดหน้าต่าง
+            </span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-6">
-            {synologyApps.map((app) => {
+            {desktopApps.map((app) => {
               const Icon = app.icon;
+              const isRunning = openWindows.some((w) => w.id === app.id);
               return (
-                <Link
+                <div
                   key={app.id}
-                  href={app.href}
-                  target={app.external ? '_blank' : undefined}
-                  className="group flex flex-col items-center p-3 rounded-2xl hover:bg-white/10 transition-all duration-200 text-center cursor-pointer select-none"
+                  onClick={() => handleOpenApp(app)}
+                  className="group flex flex-col items-center p-3 rounded-2xl hover:bg-white/10 transition-all duration-150 text-center cursor-pointer relative"
                 >
-                  {/* Synology Rounded App Icon with Shadow */}
+                  {/* Running dot indicator */}
+                  {isRunning && (
+                    <span className="absolute top-2 right-4 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-500/50 animate-pulse" />
+                  )}
+
+                  {/* App Icon Tile */}
                   <div
-                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br ${app.color} p-4 text-white shadow-lg shadow-black/40 group-hover:scale-105 group-hover:shadow-sky-500/30 group-active:scale-95 transition-all duration-200 flex items-center justify-center border border-white/20`}
+                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br ${app.color} p-4 text-white shadow-lg shadow-black/40 group-hover:scale-105 group-hover:shadow-sky-500/30 group-active:scale-95 transition-all duration-150 flex items-center justify-center border border-white/20`}
                   >
                     <Icon className="w-8 h-8 sm:w-10 sm:h-10 drop-shadow-md" />
                   </div>
                   
-                  {/* App Title with DSM style text shadow */}
-                  <span className="mt-2.5 text-xs sm:text-sm font-medium text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] tracking-wide group-hover:text-sky-300 transition-colors">
+                  {/* App Title */}
+                  <span className="mt-2 text-xs sm:text-sm font-medium text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] tracking-wide group-hover:text-sky-300 transition-colors">
                     {app.name}
                   </span>
-                  <span className="text-[11px] text-slate-400 drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
+                  <span className="text-[10px] text-slate-400 drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
                     {app.subname}
                   </span>
-                </Link>
+                </div>
               );
             })}
           </div>
         </div>
 
-        {/* Right: Synology DSM Floating System Health Widget Panel */}
+        {/* Right: Floating System Health Widget Panel */}
         {showWidget && (
           <aside className="w-full lg:w-96 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200 p-5 text-slate-800 shrink-0">
             {/* Widget Header */}
@@ -336,7 +439,7 @@ export default function SynologyDesktop({ systemOverview }: SynologyDesktopProps
             {/* 15 Services Mini Checklist */}
             <div>
               <p className="text-xs font-bold text-slate-700 mb-2">สถานะบริการ (15 รายการ)</p>
-              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                 {services.map((s: any) => (
                   <div 
                     key={s.id} 
@@ -353,16 +456,64 @@ export default function SynologyDesktop({ systemOverview }: SynologyDesktopProps
             </div>
 
             {/* Button to Classic Dashboard */}
-            <Link
-              href="/"
-              className="mt-4 w-full py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition shadow-sm"
-            >
-              <span>เปิดแดชบอร์ดเต็มรูปแบบ</span>
-              <ChevronRight className="w-4 h-4" />
-            </Link>
+            {onOpenClassicDashboard && (
+              <button
+                onClick={onOpenClassicDashboard}
+                className="mt-4 w-full py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition shadow-sm"
+              >
+                <span>เปิดแดชบอร์ดเต็มรูปแบบ</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
           </aside>
         )}
       </div>
+
+      {/* Render Active Desktop Windows */}
+      {openWindows.map((win, idx) => (
+        <WindowManager
+          key={win.id}
+          app={win}
+          zIndex={win.id === activeWindowId ? 40 : 20 + idx}
+          isMinimized={win.isMinimized}
+          onFocus={() => setActiveWindowId(win.id)}
+          onClose={() => handleCloseWindow(win.id)}
+          onMinimize={() => handleMinimizeWindow(win.id)}
+        />
+      ))}
+
+      {/* Bottom Desktop Taskbar for Minimized / Running Windows */}
+      {openWindows.length > 0 && (
+        <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl px-3 py-1.5 flex items-center space-x-2 shadow-2xl">
+          {openWindows.map((win) => {
+            const Icon = win.icon;
+            const isActive = activeWindowId === win.id && !win.isMinimized;
+            return (
+              <button
+                key={win.id}
+                onClick={() => {
+                  if (win.isMinimized || activeWindowId !== win.id) {
+                    setOpenWindows((prev) =>
+                      prev.map((w) => (w.id === win.id ? { ...w, isMinimized: false } : w))
+                    );
+                    setActiveWindowId(win.id);
+                  } else {
+                    handleMinimizeWindow(win.id);
+                  }
+                }}
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl text-xs font-medium transition ${
+                  isActive
+                    ? 'bg-sky-600 text-white shadow-md'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="hidden sm:inline">{win.title}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Reopen Widget Button if closed */}
       {!showWidget && (
