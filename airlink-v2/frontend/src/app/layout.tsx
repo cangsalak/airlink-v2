@@ -4,7 +4,7 @@ import LayoutShell from '@/components/LayoutShell';
 
 export const metadata: Metadata = {
   title: 'Airlink Mikrotik V2 - ระบบจัดการ Hotspot & FreeRADIUS',
-  description: 'Next.js and Express Hotspot & Radius Management for Mikrotik with Synology DSM Desktop',
+  description: 'ระบบจัดการ Hotspot Mikrotik และ FreeRADIUS V2',
 };
 
 export default function RootLayout({

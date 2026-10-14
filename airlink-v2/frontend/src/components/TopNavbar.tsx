@@ -54,7 +54,7 @@ export default function TopNavbar({
           {onOpenAppLauncher && (
             <button
               onClick={onOpenAppLauncher}
-              title="Synology DSM App Launcher (เมนูหลัก)"
+              title="เมนูหลัก (App Launcher)"
               className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-sky-400 hover:text-white transition"
             >
               <Grid className="w-5 h-5" />
@@ -83,7 +83,7 @@ export default function TopNavbar({
               ) : (
                 <>
                   <Monitor className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>ไอคอนหน้าจอ (Synology)</span>
+                  <span>โหมดไอคอนหน้าจอ</span>
                 </>
               )}
             </button>

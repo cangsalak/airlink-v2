@@ -29,7 +29,7 @@ export default function AppLauncherModal({ isOpen, onClose }: AppLauncherModalPr
           <div className="flex items-center space-x-3">
             <span className="text-xl font-bold text-sky-400">เมนูหลัก (Main Menu)</span>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
-              Synology DSM Style
+              Airlink V2
             </span>
           </div>
           <button

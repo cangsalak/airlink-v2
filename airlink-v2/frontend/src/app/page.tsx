@@ -118,10 +118,10 @@ export default function DashboardPage() {
           <button
             onClick={toggleViewMode}
             className="flex items-center space-x-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-semibold transition border border-slate-700"
-            title="เปิดโหมด Synology Desktop"
+            title="สลับโหมดหน้าจอไอคอน"
           >
             <Monitor className="w-3.5 h-3.5" />
-            <span>โหมดไอคอน Synology</span>
+            <span>โหมดไอคอนหน้าจอ</span>
           </button>
           <button
             onClick={loadSystemOverview}

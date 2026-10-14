@@ -209,7 +209,7 @@ export default function SynologyDesktop({ systemOverview }: SynologyDesktopProps
         <div className="flex-1">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center space-x-2 text-white/90">
-              <span className="font-semibold text-sm tracking-wide">Synology DSM Style Desktop &bull; แอร์ลิงก์ ไมโครติก</span>
+              <span className="font-semibold text-sm tracking-wide">หน้าจอหลัก &bull; แอร์ลิงก์ ไมโครติก</span>
             </div>
           </div>
 
