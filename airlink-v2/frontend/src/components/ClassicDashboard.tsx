@@ -18,46 +18,33 @@ export default function ClassicDashboard({
   loading = false,
 }: ClassicDashboardProps) {
   const system = systemOverview?.system || {
-    os: 'Ubuntu 24.04.1 LTS',
-    ip: '192.168.88.252',
-    time: '11/10/2026 21:52',
-    lastCheck: '11/10/2026 21:50:02',
-    routerName: 'hAP',
-    routerModel: 'hAP ax^3 · 7.23.7 (long-term)',
-    routerUptime: '2d2h53m2s',
+    os: 'กำลังตรวจสอบ...',
+    ip: 'กำลังตรวจสอบ...',
+    time: '-',
+    lastCheck: '-',
+    routerName: 'MikroTik',
+    routerModel: '-',
+    routerUptime: '-',
   };
 
   const stats = systemOverview?.stats || {
     onlineUsers: 0,
-    hotspotServers: 1,
-    profilesCount: 1,
+    hotspotServers: 0,
+    profilesCount: 0,
     mikrotikLoadPct: 0,
   };
 
-  const services = systemOverview?.services || [
-    { id: 'mikrotik_api', name: 'MIKROTIK API', detail: 'hAP ax^3 · 7.23.7 (long-term)' },
-    { id: 'radius_server', name: 'RADIUS SERVER', detail: 'ทำงานปกติ' },
-    { id: 'radius_auth', name: 'RADIUS AUTH', detail: 'RADIUS ตอบคำขอที่ส่งสายเป็นถูกต้อง' },
-    { id: 'radius_accounting', name: 'RADIUS ACCOUNTING', detail: 'ออนไลน์ 0 · Accounting เปิด 0 · ไม่พบ 0 · ค้าง 0' },
-    { id: 'database', name: 'DATABASE', detail: 'เชื่อมต่อฐานข้อมูลปกติ' },
-    { id: 'web_server', name: 'WEB SERVER', detail: 'ทำงานปกติ' },
-    { id: 'server_cpu', name: 'SERVER CPU', detail: 'ใช้งาน CPU 5.3%' },
-    { id: 'server_memory', name: 'SERVER MEMORY', detail: 'ใช้หน่วยความจำ 16.7% ว่าง 6.0 GB' },
-    { id: 'server_disk', name: 'SERVER DISK', detail: 'ใช้พื้นที่ 21.6% ว่าง 36.8 GB' },
-    { id: 'default_gateway', name: 'DEFAULT GATEWAY', detail: 'เชื่อมต่อ Gateway 192.168.88.1 ผ่าน enp0s3 ปกติ' },
-    { id: 'dns', name: 'DNS', detail: 'แปลงชื่อ DNS ได้ปกติ' },
-    { id: 'internet', name: 'INTERNET', detail: 'ออกอินเทอร์เน็ตได้ปกติ' },
-    { id: 'hotspot_server', name: 'HOTSPOT SERVER', detail: 'Hotspot airlink-hotspot ว่าง ระบบพร้อมใช้งาน' },
-    { id: 'hotspot_radius', name: 'HOTSPOT RADIUS', detail: 'Hotspot ใช้ RADIUS และ Accounting เปิดใช้งาน' },
-    { id: 'captive_portal', name: 'CAPTIVE PORTAL', detail: 'พบบริการ hotspot airlink/login.html' }
-  ];
+  const services = systemOverview?.services || [];
 
   return (
     <div className="p-4 sm:p-6 space-y-4 max-w-7xl mx-auto select-none">
       {/* 1. Dark Info Banner Pill (Matches Screenshot Top Pill) */}
       <div className="bg-[#131d2e] text-white rounded-xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-y-2 text-xs sm:text-sm font-medium shadow-sm">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
-          <span className="font-bold text-white tracking-wide">Airlink Mikrotik</span>
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="AirLink" className="h-5 w-auto object-contain drop-shadow" />
+            <span className="font-bold text-white tracking-wide">Airlink Mikrotik</span>
+          </div>
           <span className="text-slate-300">{system.os}</span>
           <span className="text-slate-300">
             IP ระบบ: <span className="font-mono text-slate-100">{system.ip}</span>

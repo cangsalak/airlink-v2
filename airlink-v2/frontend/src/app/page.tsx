@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
-import SynologyDesktop from '@/components/SynologyDesktop';
+import Desktop from '@/components/Desktop';
 
 export default function DashboardPage() {
   const [systemOverview, setSystemOverview] = useState<any>(null);
@@ -28,7 +28,7 @@ export default function DashboardPage() {
 
   return (
     <div className="w-full h-full">
-      <SynologyDesktop 
+      <Desktop 
         systemOverview={systemOverview} 
       />
     </div>

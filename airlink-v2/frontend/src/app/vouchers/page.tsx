@@ -12,6 +12,7 @@ import {
   Ticket
 } from 'lucide-react';
 import { fetchApi } from '@/lib/api';
+import { notifySuccess, notifyError } from '@/lib/notify';
 
 export default function VouchersPage() {
   const [vouchers, setVouchers] = useState<any[]>([]);
@@ -100,9 +101,10 @@ export default function VouchersPage() {
         }),
       });
       setShowGenerateModal(false);
+      notifySuccess('สร้างคูปองสำเร็จ', `สร้างคูปองจำนวน ${genCount} ใบเรียบร้อยแล้ว`);
       loadData(1);
     } catch (err: any) {
-      alert(`สร้างคูปองไม่สำเร็จ: ${err.message}`);
+      notifyError('สร้างคูปองไม่สำเร็จ', err.message);
     } finally {
       setGenerating(false);
     }
@@ -112,10 +114,11 @@ export default function VouchersPage() {
     if (!confirm('ยืนยันลบคูปองนี้? ข้อมูลใน FreeRADIUS จะถูกลบออกด้วย')) return;
     try {
       await fetchApi(`/vouchers/${id}`, { method: 'DELETE' });
+      notifySuccess('ลบคูปองสำเร็จ', 'คูปองถูกลบออกจากระบบเรียบร้อย');
       loadData(pagination.page);
       loadBatches();
     } catch (err: any) {
-      alert(`ลบคูปองไม่สำเร็จ: ${err.message}`);
+      notifyError('ลบคูปองไม่สำเร็จ', err.message);
     }
   };
 
@@ -123,12 +126,12 @@ export default function VouchersPage() {
     if (!confirm(`ยืนยันลบคูปองทั้งชุด "${batchId}"? คูปองทั้งหมดในชุดนี้จะถูกลบออกจาก FreeRADIUS ด้วย`)) return;
     try {
       await fetchApi(`/vouchers/batch/${encodeURIComponent(batchId)}`, { method: 'DELETE' });
-      alert('ลบคูปองทั้งชุดเรียบร้อยแล้ว');
+      notifySuccess('ลบชุดคูปองสำเร็จ', 'ลบคูปองทั้งชุดเรียบร้อยแล้ว');
       setBatchFilter('');
       loadData(1);
       loadBatches();
     } catch (err: any) {
-      alert(`ลบชุดคูปองไม่สำเร็จ: ${err.message}`);
+      notifyError('ลบชุดคูปองไม่สำเร็จ', err.message);
     }
   };
 
@@ -141,13 +144,17 @@ export default function VouchersPage() {
           <p className="text-xs text-slate-500">สร้างบัตรอินเทอร์เน็ต ซิงค์ข้อมูลกับ FreeRADIUS และ Mikrotik อัตโนมัติ</p>
         </div>
         <div className="flex items-center space-x-3">
-          <Link
-            href="/vouchers/print"
+          <button
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('open-desktop-app', { detail: { id: 'print' } }));
+              }
+            }}
             className="flex items-center space-x-2 px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition shadow-sm"
           >
             <Printer className="w-4 h-4 text-slate-500" />
             <span>พิมพ์บัตรคูปอง</span>
-          </Link>
+          </button>
           <button
             onClick={() => setShowGenerateModal(true)}
             className="flex items-center space-x-2 px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold transition shadow-sm"

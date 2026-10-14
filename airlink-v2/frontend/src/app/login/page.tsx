@@ -11,7 +11,7 @@ function HotspotLoginContent() {
   const [password, setPassword] = useState('');
   const [separatePassword, setSeparatePassword] = useState(false);
   const [hotspotDns, setHotspotDns] = useState('hotspot.local');
-  const [ssid, setSsid] = useState('@Free-WiFi-Airlink');
+  const [ssid, setSsid] = useState('@Airlink-Hotspot');
   const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
@@ -77,10 +77,10 @@ function HotspotLoginContent() {
       <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl backdrop-blur-xl relative z-10 space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center p-3.5 bg-sky-500/20 text-sky-400 rounded-2xl mb-2 shadow-inner">
-            <Wifi className="w-8 h-8" />
+          <div className="flex items-center justify-center mb-2">
+            <img src="/logo.png" alt="AirLink" className="h-14 w-auto object-contain drop-shadow-md" />
           </div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">{ssid}</h1>
+          <h1 className="text-xl font-extrabold text-white tracking-tight">{ssid}</h1>
           <p className="text-xs text-slate-400">กรุณากรอกรหัสคูปองอินเทอร์เน็ตเพื่อเข้าใช้งาน</p>
         </div>
 

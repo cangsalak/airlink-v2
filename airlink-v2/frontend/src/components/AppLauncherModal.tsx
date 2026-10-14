@@ -2,20 +2,21 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { synologyApps } from './SynologyDesktop';
+import { allDesktopApps } from '@/lib/apps';
 import { X, Search } from 'lucide-react';
 
 interface AppLauncherModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSelectApp?: (appId: string) => void;
 }
 
-export default function AppLauncherModal({ isOpen, onClose }: AppLauncherModalProps) {
+export default function AppLauncherModal({ isOpen, onClose, onSelectApp }: AppLauncherModalProps) {
   const [searchTerm, setSearchTerm] = React.useState('');
 
   if (!isOpen) return null;
 
-  const filteredApps = synologyApps.filter(
+  const filteredApps = (allDesktopApps || []).filter(
     (app) =>
       app.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       app.subname.toLowerCase().includes(searchTerm.toLowerCase())
@@ -27,6 +28,7 @@ export default function AppLauncherModal({ isOpen, onClose }: AppLauncherModalPr
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
           <div className="flex items-center space-x-3">
+            <img src="/logo.png" alt="AirLink" className="h-6 w-auto object-contain drop-shadow" />
             <span className="text-xl font-bold text-sky-400">เมนูหลัก (Main Menu)</span>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
               Airlink V2
@@ -58,11 +60,23 @@ export default function AppLauncherModal({ isOpen, onClose }: AppLauncherModalPr
           {filteredApps.map((app) => {
             const Icon = app.icon;
             return (
-              <Link
+              <div
                 key={app.id}
-                href={app.href}
-                target={app.external ? '_blank' : undefined}
-                onClick={onClose}
+                onClick={() => {
+                  onClose();
+                  if (app.external && app.href) {
+                    window.open(app.href, '_blank');
+                    return;
+                  }
+                  if (onSelectApp) {
+                    onSelectApp(app.id);
+                  } else {
+                    window.dispatchEvent(new CustomEvent('open-desktop-app', { detail: { id: app.id } }));
+                    if (window.location.pathname !== '/') {
+                      window.location.href = `/?app=${app.id}`;
+                    }
+                  }
+                }}
                 className="group flex flex-col items-center p-3 rounded-2xl hover:bg-white/10 transition text-center cursor-pointer"
               >
                 <div
@@ -74,7 +88,7 @@ export default function AppLauncherModal({ isOpen, onClose }: AppLauncherModalPr
                   {app.name}
                 </span>
                 <span className="text-[10px] text-slate-400">{app.subname}</span>
-              </Link>
+              </div>
             );
           })}
         </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Layers, Plus, Trash2, X, RefreshCw } from 'lucide-react';
 import { fetchApi } from '@/lib/api';
+import { notifySuccess, notifyError } from '@/lib/notify';
 
 export default function ProfilesPage() {
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -56,9 +57,10 @@ export default function ProfilesPage() {
       setShowModal(false);
       setName('');
       setGroupname('');
+      notifySuccess('สร้างแพ็กเกจสำเร็จ', `บันทึกแพ็กเกจ "${name}" เรียบร้อยแล้ว`);
       loadProfiles();
     } catch (err: any) {
-      alert(`สร้างแพ็กเกจไม่สำเร็จ: ${err.message}`);
+      notifyError('สร้างแพ็กเกจไม่สำเร็จ', err.message);
     } finally {
       setSaving(false);
     }
@@ -68,9 +70,10 @@ export default function ProfilesPage() {
     if (!confirm('ยืนยันลบแพ็กเกจนี้?')) return;
     try {
       await fetchApi(`/profiles/${id}`, { method: 'DELETE' });
+      notifySuccess('ลบแพ็กเกจสำเร็จ', 'แพ็กเกจถูกลบเรียบร้อยแล้ว');
       loadProfiles();
     } catch (err: any) {
-      alert(`ลบไม่สำเร็จ: ${err.message}`);
+      notifyError('ลบไม่สำเร็จ', err.message);
     }
   };
 

@@ -5,6 +5,11 @@ import LayoutShell from '@/components/LayoutShell';
 export const metadata: Metadata = {
   title: 'Airlink Mikrotik V2 - ระบบจัดการ Hotspot & FreeRADIUS',
   description: 'ระบบจัดการ Hotspot Mikrotik และ FreeRADIUS V2',
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({

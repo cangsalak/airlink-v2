@@ -12,6 +12,7 @@ import {
   Cpu
 } from 'lucide-react';
 import { fetchApi } from '@/lib/api';
+import { notifySuccess, notifyError } from '@/lib/notify';
 
 export default function MikrotikPage() {
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
@@ -103,10 +104,10 @@ export default function MikrotikPage() {
         });
         if (created?.id) setSavedRouterId(created.id);
       }
-      alert('บันทึกการตั้งค่าเราเตอร์เรียบร้อยแล้ว');
+      notifySuccess('บันทึกการตั้งค่าเราเตอร์เรียบร้อย', 'ข้อมูลเราเตอร์ถูกบันทึกลงระบบแล้ว');
       loadActiveUsers();
     } catch (err: any) {
-      alert(`บันทึกไม่สำเร็จ: ${err.message}`);
+      notifyError('บันทึกไม่สำเร็จ', err.message);
     } finally {
       setSavingRouter(false);
     }
@@ -121,10 +122,10 @@ export default function MikrotikPage() {
         method: 'POST',
         body: JSON.stringify({ activeId: id }),
       });
-      alert(`ตัดการเชื่อมต่อสำเร็จ`);
+      notifySuccess('ตัดการเชื่อมต่อสำเร็จ', `ตัดการเชื่อมต่อ ${user.user || user.username} เรียบร้อยแล้ว`);
       loadActiveUsers();
     } catch (err: any) {
-      alert(`ไม่สามารถตัดการเชื่อมต่อ: ${err.message}`);
+      notifyError('ไม่สามารถตัดการเชื่อมต่อ', err.message);
     }
   };
 
