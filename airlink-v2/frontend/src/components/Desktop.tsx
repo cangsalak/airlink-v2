@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   Activity,
@@ -302,6 +302,8 @@ export default function Desktop({
     desktopApps.find(a => a.id === 'settings')!,
   ].filter(Boolean);
 
+  const initialOpenedRef = useRef(false);
+
   const handleOpenApp = (app: DesktopAppDef) => {
     if (app.external && app.href) {
       window.open(app.href, '_blank');
@@ -313,16 +315,13 @@ export default function Desktop({
       return;
     }
 
-    // Open as Desktop Window
-    const existing = openWindows.find((w) => w.id === app.id);
-    if (existing) {
-      // Unminimize and focus
-      setOpenWindows((prev) =>
-        prev.map((w) => (w.id === app.id ? { ...w, isMinimized: false } : w))
-      );
-      setActiveWindowId(app.id);
-    } else {
-      setOpenWindows((prev) => [
+    // Open as Desktop Window using functional updater
+    setOpenWindows((prev) => {
+      const existing = prev.find((w) => w.id === app.id);
+      if (existing) {
+        return prev.map((w) => (w.id === app.id ? { ...w, isMinimized: false } : w));
+      }
+      return [
         ...prev,
         {
           id: app.id,
@@ -331,9 +330,9 @@ export default function Desktop({
           component: app.component,
           isMinimized: false,
         },
-      ]);
-      setActiveWindowId(app.id);
-    }
+      ];
+    });
+    setActiveWindowId(app.id);
   };
 
   useEffect(() => {
@@ -343,18 +342,17 @@ export default function Desktop({
     if (savedWp) setWallpaper(savedWp);
     if (savedCustom) setCustomWallpaper(savedCustom);
 
-    // Auto-open requested app from URL query param e.g. /?app=database
-    const urlParams = new URLSearchParams(window.location.search);
-    const appParam = urlParams.get('app');
-    if (appParam) {
-      const target = desktopApps.find(a => a.id === appParam);
-      if (target) {
-        handleOpenApp(target);
+    // Auto-open requested app from URL query param ONLY ONCE on mount
+    if (!initialOpenedRef.current) {
+      initialOpenedRef.current = true;
+      const urlParams = new URLSearchParams(window.location.search);
+      const appParam = urlParams.get('app');
+      if (appParam) {
+        const target = desktopApps.find(a => a.id === appParam);
+        if (target) {
+          handleOpenApp(target);
+        }
       }
-    } else {
-      // Open Dashboard by default on launch
-      const dash = desktopApps.find(a => a.id === 'dashboard');
-      if (dash) handleOpenApp(dash);
     }
 
     const handleCustomOpen = (e: any) => {
@@ -397,12 +395,14 @@ export default function Desktop({
       window.removeEventListener('close-all-windows', handleCloseAll);
       window.removeEventListener('change-wallpaper', handleWpChange);
     };
-  }, [openWindows, desktopApps]);
+  }, []);
 
   const handleCloseWindow = (id: string) => {
     setOpenWindows((prev) => prev.filter((w) => w.id !== id));
-    if (activeWindowId === id) {
-      setActiveWindowId(null);
+    setActiveWindowId((prev) => (prev === id ? null : prev));
+    // Clear URL param if user closed the window that was launched via URL
+    if (typeof window !== 'undefined' && window.location.search.includes(id)) {
+      window.history.replaceState({}, '', window.location.pathname);
     }
   };
 
@@ -410,9 +410,7 @@ export default function Desktop({
     setOpenWindows((prev) =>
       prev.map((w) => (w.id === id ? { ...w, isMinimized: true } : w))
     );
-    if (activeWindowId === id) {
-      setActiveWindowId(null);
-    }
+    setActiveWindowId((prev) => (prev === id ? null : prev));
   };
 
   return (

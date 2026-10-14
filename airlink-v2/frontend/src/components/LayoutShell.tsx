@@ -29,14 +29,6 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const [wallpaper, setWallpaper] = useState<string>('vorssaint-neon');
   const [customWallpaper, setCustomWallpaper] = useState<string>('');
 
-  // Forward standalone module URLs to the Desktop OS as a window
-  useEffect(() => {
-    if (pathname && pathname !== '/' && pathname !== '/login' && pathname !== '/portal' && pathname !== '/vouchers/print') {
-      const appId = pathname.replace(/^\//, '');
-      router.replace(`/?app=${appId}`);
-    }
-  }, [pathname, router]);
-
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedWp = localStorage.getItem('airlink_wallpaper');
