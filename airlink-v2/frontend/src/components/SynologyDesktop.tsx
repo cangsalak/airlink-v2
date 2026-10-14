@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import {
   LayoutDashboard,
   Activity,
@@ -20,11 +19,11 @@ import {
   FileText,
   ShieldCheck,
   CheckCircle2,
-  ChevronRight,
   X,
   LucideIcon
 } from 'lucide-react';
 import WindowManager from './WindowManager';
+import ClassicDashboard from './ClassicDashboard';
 
 // Import app sub-views
 import VouchersPage from '@/app/vouchers/page';
@@ -53,12 +52,10 @@ interface DesktopAppDef {
 
 interface SynologyDesktopProps {
   systemOverview: any;
-  onOpenClassicDashboard?: () => void;
 }
 
 export default function SynologyDesktop({
-  systemOverview,
-  onOpenClassicDashboard
+  systemOverview
 }: SynologyDesktopProps) {
   const [showWidget, setShowWidget] = useState(true);
   
@@ -76,10 +73,11 @@ export default function SynologyDesktop({
   const desktopApps: DesktopAppDef[] = [
     {
       id: 'dashboard',
-      name: 'แดชบอร์ดระบบ',
-      subname: 'Classic View',
+      name: 'ภาพรวมระบบ',
+      subname: 'System Health',
       color: 'from-sky-500 to-blue-600',
       icon: LayoutDashboard,
+      component: <ClassicDashboard systemOverview={systemOverview} />,
     },
     {
       id: 'vouchers',
@@ -197,13 +195,6 @@ export default function SynologyDesktop({
   ];
 
   const handleOpenApp = (app: DesktopAppDef) => {
-    if (app.id === 'dashboard') {
-      if (onOpenClassicDashboard) {
-        onOpenClassicDashboard();
-      }
-      return;
-    }
-
     if (app.external && app.href) {
       window.open(app.href, '_blank');
       return;
@@ -291,8 +282,8 @@ export default function SynologyDesktop({
   ];
 
   return (
-    <div className="relative w-full min-h-[calc(100vh-85px)] bg-gradient-to-br from-slate-900 via-sky-950 to-slate-950 p-4 sm:p-6 flex flex-col justify-between overflow-hidden select-none">
-      {/* Subtle Pattern */}
+    <div className="relative w-full h-[calc(100vh-44px)] bg-gradient-to-br from-slate-900 via-sky-950 to-slate-950 p-4 sm:p-6 flex flex-col justify-between overflow-hidden select-none">
+      {/* Subtle Desktop Wallpaper Pattern */}
       <div 
         className="absolute inset-0 opacity-10 pointer-events-none" 
         style={{
@@ -301,17 +292,11 @@ export default function SynologyDesktop({
         }}
       />
 
-      {/* Main Content Area */}
+      {/* Desktop Workspace */}
       <div className="relative z-10 flex flex-col lg:flex-row gap-6 h-full items-start">
         {/* Left / Center: Desktop App Icons Grid */}
         <div className="flex-1 w-full">
-          <div className="mb-4 flex items-center justify-between text-white/90">
-            <span className="font-semibold text-sm tracking-wide">
-              เดสก์ท็อปไอคอน &bull; ดับเบิลคลิกหรือคลิกเพื่อเปิดหน้าต่าง
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-6 pt-2">
             {desktopApps.map((app) => {
               const Icon = app.icon;
               const isRunning = openWindows.some((w) => w.id === app.id);
@@ -323,12 +308,12 @@ export default function SynologyDesktop({
                 >
                   {/* Running dot indicator */}
                   {isRunning && (
-                    <span className="absolute top-2 right-4 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-500/50 animate-pulse" />
+                    <span className="absolute top-2 right-4 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-emerald-500/50 animate-pulse shadow-sm shadow-emerald-500" />
                   )}
 
                   {/* App Icon Tile */}
                   <div
-                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br ${app.color} p-4 text-white shadow-lg shadow-black/40 group-hover:scale-105 group-hover:shadow-sky-500/30 group-active:scale-95 transition-all duration-150 flex items-center justify-center border border-white/20`}
+                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br ${app.color} p-4 text-white shadow-lg shadow-black/50 group-hover:scale-105 group-hover:shadow-sky-500/30 group-active:scale-95 transition-all duration-150 flex items-center justify-center border border-white/20`}
                   >
                     <Icon className="w-8 h-8 sm:w-10 sm:h-10 drop-shadow-md" />
                   </div>
@@ -454,22 +439,11 @@ export default function SynologyDesktop({
                 ))}
               </div>
             </div>
-
-            {/* Button to Classic Dashboard */}
-            {onOpenClassicDashboard && (
-              <button
-                onClick={onOpenClassicDashboard}
-                className="mt-4 w-full py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition shadow-sm"
-              >
-                <span>เปิดแดชบอร์ดเต็มรูปแบบ</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
           </aside>
         )}
       </div>
 
-      {/* Render Active Desktop Windows */}
+      {/* Render Active Desktop Windows with Controls */}
       {openWindows.map((win, idx) => (
         <WindowManager
           key={win.id}
